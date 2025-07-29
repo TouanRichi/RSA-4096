@@ -177,6 +177,7 @@ int run_binary_verification(void);
 int run_benchmarks(void);
 int test_large_rsa_keys(void);
 int run_manual_key_test(void);
+int test_real_rsa_4096(void);
 
 /* ===================== HELPER FUNCTIONS - FIXED ===================== */
 

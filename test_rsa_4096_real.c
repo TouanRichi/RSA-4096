@@ -18,20 +18,28 @@ int main(void) {
     printf("Date: 2025-07-29 01:34:21 UTC\n");
     printf("User: TouanRichi\n\n");
 
-    /* Fill in with your real RSA-1024, RSA-2048, RSA-4096 keys and messages here! */
-    /* For demonstration, only print a message. Replace with your full key test logic if needed. */
-    printf("This is a placeholder for real RSA-1024, 2048, 4096 performance and round-trip tests.\n");
-    printf("Add real key modulus, exponent, d, and message to test full system at scale.\n");
-    printf("===============================================\n");
+    printf("🎯 Running comprehensive RSA-4096 real key tests...\n\n");
+    
+    /* Call the comprehensive real RSA-4096 test function */
+    int result = test_real_rsa_4096();
+    
+    printf("\n===============================================\n");
     printf("🎯 RSA-4096 System Final Status:\n");
     printf("===============================================\n");
-    printf("✅ RSA-1024 testing: FULLY WORKING\n");
-    printf("✅ RSA-2048 testing: FULLY WORKING\n");
-    printf("✅ Montgomery REDC: IMPLEMENTED & WORKING\n");
-    printf("✅ Fallback arithmetic: STABLE\n");
-    printf("✅ RSA-4096 capacity: SYSTEM READY\n");
-    printf("✅ Large arithmetic: FUNCTIONAL\n");
-    printf("✅ Round-trip testing: PASSED\n");
+    
+    if (result == 0) {
+        printf("✅ RSA-4096 real key testing: FULLY WORKING\n");
+        printf("✅ Montgomery REDC: IMPLEMENTED & WORKING\n");
+        printf("✅ 4096-bit arithmetic: FUNCTIONAL\n");
+        printf("✅ Round-trip testing: PASSED\n");
+        printf("✅ Performance benchmarks: COMPLETED\n");
+        printf("✅ Production-scale keys: VERIFIED\n");
+    } else {
+        printf("❌ RSA-4096 real key testing: FAILED\n");
+        printf("⚠️  Some tests did not pass\n");
+    }
+    
     printf("===============================================\n");
-    return 0;
+    
+    return result;
 }
