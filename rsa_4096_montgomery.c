@@ -327,10 +327,9 @@ int montgomery_ctx_init(montgomery_ctx_t *ctx, const bigint_t *modulus) {
     
     debug_print_bigint("Modulus (n)", &ctx->n);
     
-    /* For very large modulus (> 32 words), disable Montgomery for this version */
+    /* For very large modulus (> 32 words), this implementation may need optimization */
     if (ctx->n_words > 32) {
-        printf("[MONTGOMERY_COMPLETE] Large modulus (%d words), Montgomery REDC disabled\n", ctx->n_words);
-        return 0;  /* Not an error - graceful fallback */
+        printf("[MONTGOMERY_COMPLETE] Large modulus (%d words) - using Montgomery REDC implementation\n", ctx->n_words);
     }
     
     /* Calculate R = 2^(32 * n_words) */
@@ -372,8 +371,8 @@ int montgomery_ctx_init(montgomery_ctx_t *ctx, const bigint_t *modulus) {
     printf("[MONTGOMERY_COMPLETE] Computing R^(-1) mod n...\n");
     int ret = extended_gcd_full(&ctx->r_inv, &ctx->r, &ctx->n);
     if (ret != 0) {
-        printf("[MONTGOMERY_COMPLETE] Failed to compute R^(-1) mod n (%d), disabling Montgomery\n", ret);
-        return 0;  /* Not an error - graceful fallback */
+        printf("[MONTGOMERY_COMPLETE] ERROR: Failed to compute R^(-1) mod n (%d)\n", ret);
+        return ret;  /* Return error - no fallback allowed */
     }
     
     debug_print_bigint("R^(-1) mod n", &ctx->r_inv);
@@ -435,8 +434,7 @@ void montgomery_ctx_print_info(const montgomery_ctx_t *ctx) {
         printf("R bits: %d\n", bigint_bit_length(&ctx->r));
         printf("n_words: %d, r_words: %d\n", ctx->n_words, ctx->r_words);
         printf("n' = 0x%08x\n", ctx->n_prime);
-    } else {
-        printf("Status: DISABLED (using standard arithmetic fallback)\n");
+        printf("Status: ACTIVE (Montgomery REDC implementation for RISC-V)\n");
     }
     printf("==========================================\n");
 }

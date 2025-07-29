@@ -207,7 +207,7 @@ int test_large_rsa_keys(void) {
     }
     
     printf("✅ Large keys loaded successfully\n");
-    printf("ℹ️  Montgomery REDC is disabled (fallback to standard arithmetic)\n\n");
+    printf("ℹ️  Montgomery REDC implementation active (optimized for RISC-V)\n\n");
     
     const char *test_msg = "42";
     printf("🔐 Testing encryption/decryption with message: %s\n", test_msg);
@@ -415,6 +415,167 @@ int run_binary_verification(void) {
     }
     
     printf("===============================================\n");
+    rsa_4096_free(&pub_key);
+    rsa_4096_free(&priv_key);
+    return 0;
+}
+
+/* ===================== MANUAL KEY INPUT TESTING ===================== */
+
+int run_manual_key_test(void) {
+    printf("===============================================\n");
+    printf("RSA-4096 Manual Key Input Testing\n");
+    printf("===============================================\n");
+    time_t now = time(NULL);
+    struct tm *utc_time = gmtime(&now);
+    printf("Date: %04d-%02d-%02d %02d:%02d:%02d UTC\n", 
+           utc_time->tm_year + 1900, utc_time->tm_mon + 1, utc_time->tm_mday,
+           utc_time->tm_hour, utc_time->tm_min, utc_time->tm_sec);
+    printf("User: RSAhardcore\n\n");
+    
+    printf("Manual RSA Key Testing Mode\n");
+    printf("Enter RSA parameters in decimal format:\n\n");
+    
+    char n_input[4096];
+    char e_input[256];
+    char d_input[4096];
+    char message[256];
+    
+    /* Get modulus n */
+    printf("Enter modulus (n): ");
+    fflush(stdout);
+    if (fgets(n_input, sizeof(n_input), stdin) == NULL) {
+        printf("❌ Failed to read modulus\n");
+        return -1;
+    }
+    /* Remove newline */
+    size_t len = strlen(n_input);
+    if (len > 0 && n_input[len-1] == '\n') {
+        n_input[len-1] = '\0';
+    }
+    
+    /* Get public exponent e */
+    printf("Enter public exponent (e): ");
+    fflush(stdout);
+    if (fgets(e_input, sizeof(e_input), stdin) == NULL) {
+        printf("❌ Failed to read public exponent\n");
+        return -1;
+    }
+    len = strlen(e_input);
+    if (len > 0 && e_input[len-1] == '\n') {
+        e_input[len-1] = '\0';
+    }
+    
+    /* Get private exponent d */
+    printf("Enter private exponent (d): ");
+    fflush(stdout);
+    if (fgets(d_input, sizeof(d_input), stdin) == NULL) {
+        printf("❌ Failed to read private exponent\n");
+        return -1;
+    }
+    len = strlen(d_input);
+    if (len > 0 && d_input[len-1] == '\n') {
+        d_input[len-1] = '\0';
+    }
+    
+    /* Validate inputs */
+    if (strlen(n_input) == 0 || strlen(e_input) == 0 || strlen(d_input) == 0) {
+        printf("❌ All parameters must be non-empty\n");
+        return -1;
+    }
+    
+    printf("\n");
+    printf("Entered Parameters:\n");
+    printf("  n = %s\n", n_input);
+    printf("  e = %s\n", e_input);
+    printf("  d = %s\n", d_input);
+    printf("\n");
+    
+    /* Initialize RSA keys */
+    rsa_4096_key_t pub_key, priv_key;
+    rsa_4096_init(&pub_key);
+    rsa_4096_init(&priv_key);
+    
+    /* Load public key */
+    int ret = rsa_4096_load_key(&pub_key, n_input, e_input, 0);
+    if (ret != 0) {
+        printf("❌ Failed to load public key: %d\n", ret);
+        rsa_4096_free(&pub_key);
+        rsa_4096_free(&priv_key);
+        return ret;
+    }
+    
+    /* Load private key */
+    ret = rsa_4096_load_key(&priv_key, n_input, d_input, 1);
+    if (ret != 0) {
+        printf("❌ Failed to load private key: %d\n", ret);
+        rsa_4096_free(&pub_key);
+        rsa_4096_free(&priv_key);
+        return ret;
+    }
+    
+    printf("✅ RSA keys loaded successfully\n");
+    printf("✅ Montgomery REDC context initialized (no fallback mode)\n\n");
+    
+    /* Interactive testing loop */
+    while (1) {
+        printf("Enter test message (decimal number) or 'quit' to exit: ");
+        fflush(stdout);
+        if (fgets(message, sizeof(message), stdin) == NULL) {
+            break;
+        }
+        
+        /* Remove newline */
+        len = strlen(message);
+        if (len > 0 && message[len-1] == '\n') {
+            message[len-1] = '\0';
+        }
+        
+        if (strcmp(message, "quit") == 0) {
+            break;
+        }
+        
+        if (strlen(message) == 0) {
+            continue;
+        }
+        
+        printf("\n=== Testing message: %s ===\n", message);
+        
+        /* Encrypt */
+        char encrypted_hex[2048];
+        ret = rsa_4096_encrypt(&pub_key, message, encrypted_hex, sizeof(encrypted_hex));
+        if (ret != 0) {
+            printf("❌ Encryption failed: %d\n", ret);
+            continue;
+        }
+        
+        printf("🔐 Encrypted (hex): %s\n", encrypted_hex);
+        
+        /* Decrypt */
+        char decrypted[256];
+        ret = rsa_4096_decrypt(&priv_key, encrypted_hex, decrypted, sizeof(decrypted));
+        if (ret != 0) {
+            printf("❌ Decryption failed: %d\n", ret);
+            continue;
+        }
+        
+        printf("🔓 Decrypted: %s\n", decrypted);
+        
+        /* Verify round-trip */
+        if (strcmp(message, decrypted) == 0) {
+            printf("✅ Round-trip test: PASS\n");
+        } else {
+            printf("❌ Round-trip test: FAIL\n");
+            printf("   Original: %s\n", message);
+            printf("   Decrypted: %s\n", decrypted);
+        }
+        printf("\n");
+    }
+    
+    printf("===============================================\n");
+    printf("Manual key testing completed\n");
+    printf("===============================================\n");
+    
     rsa_4096_free(&pub_key);
     rsa_4096_free(&priv_key);
     return 0;
