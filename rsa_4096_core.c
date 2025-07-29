@@ -65,10 +65,7 @@ int rsa_4096_load_key(rsa_4096_key_t *key, const char *n_decimal, const char *e_
     
     /* Verify modulus is odd (required for Montgomery) */
     if ((key->n.words[0] & 1) == 0) {
-        printf("[rsa_4096_load_key] Warning: Modulus is even, Montgomery REDC disabled\n");
-        CHECKPOINT(LOG_INFO, "RSA key loaded successfully: %d-bit modulus, %s key", 
-                  bigint_bit_length(&key->n), is_private ? "private" : "public");
-        return 0;
+        ERROR_RETURN(-5, "Even modulus not supported - Montgomery REDC requires odd modulus");
     }
     
     /* Initialize Montgomery REDC context */
@@ -77,8 +74,7 @@ int rsa_4096_load_key(rsa_4096_key_t *key, const char *n_decimal, const char *e_
     
     ret = montgomery_ctx_init(&key->mont_ctx, &key->n);
     if (ret != 0) {
-        CHECKPOINT(LOG_INFO, "Montgomery REDC initialization failed (%d), using standard arithmetic only", ret);
-        /* Not an error - graceful fallback */
+        ERROR_RETURN(ret, "Montgomery REDC initialization failed - no fallback available");
     }
     
     CHECKPOINT(LOG_INFO, "RSA key loaded successfully: %d-bit modulus, %s key", 
