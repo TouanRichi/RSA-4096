@@ -549,7 +549,25 @@ int run_manual_key_test(void) {
             continue;
         }
         
-        printf("🔐 Encrypted (hex): %s\n", encrypted_hex);
+        /* Display encrypted result in both hex and decimal format (like verification test) */
+        bigint_t encrypted_bigint;
+        bigint_init(&encrypted_bigint);
+        ret = bigint_from_hex(&encrypted_bigint, encrypted_hex);
+        if (ret == 0) {
+            char encrypted_decimal[512];
+            memset(encrypted_decimal, 0, sizeof(encrypted_decimal));
+            ret = bigint_to_decimal(&encrypted_bigint, encrypted_decimal, sizeof(encrypted_decimal));
+            if (ret == 0) {
+                printf("🔐 Encrypted (hex): %s\n", encrypted_hex);
+                printf("🔐 Encrypted (decimal): %s\n", encrypted_decimal);
+            } else {
+                printf("🔐 Encrypted (hex): %s\n", encrypted_hex);
+                printf("⚠️  Could not convert to decimal\n");
+            }
+        } else {
+            printf("🔐 Encrypted (hex): %s\n", encrypted_hex);
+            printf("⚠️  Could not parse hex result\n");
+        }
         
         /* Decrypt */
         char decrypted[256];
