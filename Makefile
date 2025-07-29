@@ -5,7 +5,7 @@
 
 CC=gcc
 # FIXED: Enhanced compiler flags for better debugging and optimization
-CFLAGS=-Wall -Wextra -O3 -DNDEBUG -DLOG_LEVEL=1 -std=c99 -fstack-protector-strong -D_FORTIFY_SOURCE=2
+CFLAGS=-Wall -Wextra -O3 -DNDEBUG -DLOG_LEVEL=2 -std=c99 -fstack-protector-strong -D_FORTIFY_SOURCE=2
 LDFLAGS=-lm
 
 # FIXED: Complete object list with proper dependencies
