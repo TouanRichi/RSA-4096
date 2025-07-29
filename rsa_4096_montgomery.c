@@ -333,8 +333,8 @@ int montgomery_ctx_init(montgomery_ctx_t *ctx, const bigint_t *modulus) {
         return 0;  /* Not an error - graceful fallback */
     }
     
-    /* Calculate R = 2^(32 * (n_words + 1)) */
-    ctx->r_words = ctx->n_words + 1;
+    /* Calculate R = 2^(32 * n_words) */
+    ctx->r_words = ctx->n_words;
     
     /* Check overflow */
     if (ctx->r_words >= BIGINT_4096_WORDS - 10) {
