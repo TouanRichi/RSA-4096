@@ -507,35 +507,87 @@ int bigint_div(bigint_t *q, bigint_t *r, const bigint_t *a, const bigint_t *b) {
         return 0;
     }
     
-    /* Simple subtraction-based division - guaranteed to work correctly */
-    bigint_t temp_dividend, temp_divisor;
-    bigint_init(&temp_dividend);
-    bigint_init(&temp_divisor);
-    bigint_copy(&temp_dividend, a);
-    bigint_copy(&temp_divisor, b);
+    /* Binary long division - efficient for large numbers */
+    bigint_copy(r, a);  /* Start with remainder = dividend */
+    bigint_init(q);     /* Start with quotient = 0 */
     
-    /* Count how many times we can subtract b from a */
-    uint32_t quotient_count = 0;
-    
-    while (bigint_compare(&temp_dividend, &temp_divisor) >= 0) {
-        /* temp_dividend >= temp_divisor, so we can subtract */
-        bigint_t temp_result;
-        bigint_init(&temp_result);
-        int ret = bigint_sub(&temp_result, &temp_dividend, &temp_divisor);
-        if (ret != 0) return ret;
+    /* Handle single-word divisor for efficiency */
+    if (b->used == 1 && b->words[0] <= 0xFFFF) {
+        uint32_t divisor = b->words[0];
+        uint64_t remainder = 0;
         
-        bigint_copy(&temp_dividend, &temp_result);
-        quotient_count++;
-        
-        /* Safety check to prevent infinite loop */
-        if (quotient_count > 1000000) {
-            return -3; /* Overflow or infinite loop detected */
+        /* Divide from most significant word to least */
+        for (int i = r->used - 1; i >= 0; i--) {
+            uint64_t temp = (remainder << 32) | r->words[i];
+            uint32_t digit = (uint32_t)(temp / divisor);
+            remainder = temp % divisor;
+            
+            if (q->used > 0 || digit > 0) {
+                if (q->used >= BIGINT_4096_WORDS) return -3;
+                q->words[q->used++] = digit;
+            }
         }
+        
+        /* Reverse quotient words (we built it backwards) */
+        for (int i = 0; i < q->used / 2; i++) {
+            uint32_t temp = q->words[i];
+            q->words[i] = q->words[q->used - 1 - i];
+            q->words[q->used - 1 - i] = temp;
+        }
+        
+        /* Set remainder */
+        bigint_set_u32(r, (uint32_t)remainder);
+        return 0;
     }
     
-    /* Set results */
-    bigint_set_u32(q, quotient_count);
-    bigint_copy(r, &temp_dividend);
+    /* For multi-word divisors, use bit-by-bit division */
+    int dividend_bits = bigint_bit_length(a);
+    int divisor_bits = bigint_bit_length(b);
+    
+    if (dividend_bits < divisor_bits) {
+        /* Already handled above, but safety check */
+        bigint_copy(r, a);
+        bigint_init(q);
+        return 0;
+    }
+    
+    bigint_t temp_quotient, temp_remainder, shifted_divisor;
+    bigint_init(&temp_quotient);
+    bigint_init(&temp_remainder);
+    bigint_init(&shifted_divisor);
+    
+    /* Process bit by bit from MSB to LSB */
+    for (int bit = dividend_bits - 1; bit >= 0; bit--) {
+        /* Shift remainder left by 1 */
+        int ret = bigint_shift_left(&temp_remainder, r, 1);
+        if (ret != 0) return ret;
+        bigint_copy(r, &temp_remainder);
+        
+        /* Set LSB to current bit of dividend */
+        if (bigint_get_bit(a, bit)) {
+            r->words[0] |= 1;
+        } else {
+            r->words[0] &= ~1;
+        }
+        
+        /* If remainder >= divisor, subtract divisor and set quotient bit */
+        if (bigint_compare(r, b) >= 0) {
+            ret = bigint_sub(&temp_remainder, r, b);
+            if (ret != 0) return ret;
+            bigint_copy(r, &temp_remainder);
+            
+            /* Set bit in quotient */
+            ret = bigint_shift_left(&temp_quotient, q, 1);
+            if (ret != 0) return ret;
+            bigint_copy(q, &temp_quotient);
+            q->words[0] |= 1;
+        } else {
+            /* Just shift quotient left */
+            ret = bigint_shift_left(&temp_quotient, q, 1);
+            if (ret != 0) return ret;
+            bigint_copy(q, &temp_quotient);
+        }
+    }
     
     return 0;
 }

@@ -1,0 +1,24 @@
+# Build artifacts
+*.o
+rsa_4096
+test_rsa_4096_real
+
+# Debug files
+core
+vgcore.*
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Distribution packages
+*.tar.gz
+*.zip
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -34,7 +34,7 @@
 #define LOG_ERROR 2
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL LOG_DEBUG
+#define LOG_LEVEL LOG_INFO
 #endif
 
 /* ===================== MACROS ===================== */
