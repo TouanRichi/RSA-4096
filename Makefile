@@ -151,7 +151,8 @@ help:
 	@echo "System Status:"
 	@echo "  ✅ Complete Montgomery REDC: IMPLEMENTED"
 	@echo "  ✅ RSA-4096 capability: READY"
-	@echo "  ✅ Fallback arithmetic: STABLE"
+	@echo "  ✅ RISC-V optimized: YES (no fallback)"
+	@echo "  ✅ Manual key testing: AVAILABLE"
 	@echo "  ✅ Production ready: YES"
 
 # FIXED: Version information
@@ -163,6 +164,8 @@ version:
 	@echo "Features:"
 	@echo "  - Complete Montgomery REDC implementation"
 	@echo "  - RSA-4096 capable big integer arithmetic"
+	@echo "  - RISC-V hardware acceleration optimized"
+	@echo "  - Manual key input for testing"
 	@echo "  - Production-ready with comprehensive testing"
 	@echo "  - Memory safe with proper error handling"
 	@echo "  - All critical bugs fixed"
