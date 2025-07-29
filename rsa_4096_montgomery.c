@@ -706,34 +706,45 @@ int montgomery_exp(bigint_t *result, const bigint_t *base, const bigint_t *exp, 
     }
     
     /* Convert base to Montgomery form */
-    bigint_t mont_base;
+    bigint_t mont_base, mont_result;
     int ret = montgomery_to_form(&mont_base, base, ctx);
     if (ret != 0) {
         ERROR_RETURN(ret, "Failed to convert base to Montgomery form");
-    }
-    
-    /* Initialize result to 1 in Montgomery form */
-    bigint_t one, mont_result;
-    bigint_set_u32(&one, 1);
-    ret = montgomery_to_form(&mont_result, &one, ctx);
-    if (ret != 0) {
-        ERROR_RETURN(ret, "Failed to convert 1 to Montgomery form");
     }
     
     printf("[MONT_EXP_COMPLETE] Starting square-and-multiply\n");
     debug_print_bigint("Initial mont_base", &mont_base);
     debug_print_bigint("Initial mont_result (1)", &mont_result);
     
-    /* Binary exponentiation - GIỮ NGUYÊN */
+    /* Binary exponentiation - FIXED: Correct left-to-right method */
     int exp_bits = bigint_bit_length(exp);
     printf("[MONT_EXP_COMPLETE] Processing %d exponent bits\n", exp_bits);
     
-    for (int i = 0; i < exp_bits; i++) {
-        if (bigint_get_bit(exp, i)) {
-            if (i < 10 || i % 50 == 0) {
-                printf("[MONT_EXP_COMPLETE] Bit %d is set, multiplying result by base\n", i);
+    /* Standard left-to-right binary method */
+    bigint_set_u32(&mont_result, 1);
+    ret = montgomery_to_form(&mont_result, &mont_result, ctx);
+    if (ret != 0) {
+        ERROR_RETURN(ret, "Failed to convert 1 to Montgomery form");
+    }
+    
+    /* Start from MSB (left-to-right method) */
+    for (int i = exp_bits - 1; i >= 0; i--) {
+        /* Square the result (except for the very first iteration) */
+        if (i < exp_bits - 1) {
+            bigint_t temp;
+            ret = montgomery_square(&temp, &mont_result, ctx);
+            if (ret != 0) {
+                ERROR_RETURN(ret, "Failed Montgomery squaring at bit %d", i);
             }
+            bigint_copy(&mont_result, &temp);
             
+            if (i < 5 || i % 100 == 0) {
+                printf("[MONT_EXP_COMPLETE] Squaring result for bit %d\n", i);
+            }
+        }
+        
+        /* If bit is set, multiply by base */
+        if (bigint_get_bit(exp, i)) {
             bigint_t temp;
             ret = montgomery_mul(&temp, &mont_result, &mont_base, ctx);
             if (ret != 0) {
@@ -741,31 +752,14 @@ int montgomery_exp(bigint_t *result, const bigint_t *base, const bigint_t *exp, 
             }
             bigint_copy(&mont_result, &temp);
             
-            if (i < 5) {
-                debug_print_bigint("mont_result after multiply", &mont_result);
-            }
-        }
-        
-        if (i < exp_bits - 1) {
-            if (i < 5 || i % 100 == 0) {
-                printf("[MONT_EXP_COMPLETE] Squaring base for next bit (bit %d)\n", i);
-            }
-            
-            bigint_t temp;
-            ret = montgomery_square(&temp, &mont_base, ctx);
-            if (ret != 0) {
-                ERROR_RETURN(ret, "Failed Montgomery squaring at bit %d", i);
-            }
-            bigint_copy(&mont_base, &temp);
-            
-            if (i < 5) {
-                debug_print_bigint("mont_base after square", &mont_base);
+            if (i < 10 || i % 50 == 0) {
+                printf("[MONT_EXP_COMPLETE] Bit %d is set, multiplying result by base\n", i);
             }
         }
         
         if (i % 100 == 0) {
             printf("[MONT_EXP_COMPLETE] Progress: bit %d/%d (%.1f%%)\n", 
-                   i, exp_bits, (100.0 * i) / exp_bits);
+                   exp_bits - 1 - i, exp_bits, (100.0 * (exp_bits - 1 - i)) / exp_bits);
         }
     }
     
