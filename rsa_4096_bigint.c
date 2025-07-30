@@ -25,7 +25,10 @@ void bigint_init(bigint_t *a) {
 
 void bigint_copy(bigint_t *dst, const bigint_t *src) {
     if (dst && src) {
-        memcpy(dst->words, src->words, sizeof(src->words));
+        // Only copy the used portion
+        memcpy(dst->words, src->words, src->used * sizeof(uint32_t));
+        // Clear the rest
+        memset(dst->words + src->used, 0, (BIGINT_4096_WORDS - src->used) * sizeof(uint32_t));
         dst->used = src->used;
         dst->sign = src->sign;
     }
@@ -544,6 +547,8 @@ int bigint_div(bigint_t *q, bigint_t *r, const bigint_t *a, const bigint_t *b) {
     int dividend_bits = bigint_bit_length(a);
     int divisor_bits = bigint_bit_length(b);
     
+    printf("[DEBUG_DIV] dividend_bits=%d, divisor_bits=%d\n", dividend_bits, divisor_bits);
+    
     if (dividend_bits < divisor_bits) {
         /* Already handled above, but safety check */
         bigint_copy(r, a);
@@ -551,16 +556,34 @@ int bigint_div(bigint_t *q, bigint_t *r, const bigint_t *a, const bigint_t *b) {
         return 0;
     }
     
-    bigint_t temp_quotient, temp_remainder, shifted_divisor;
+    /* For very large numbers, fall back to simple remainder calculation */
+    if (a->used > BIGINT_4096_WORDS / 2) {
+        printf("[DEBUG_DIV] Dividend too large (%d words), failing\n", a->used);
+        return -3;
+    }
+    
+    /* For moderate-sized multi-word divisors, use bit-by-bit division */
+    bigint_copy(r, a);  /* Start with remainder = dividend */
+    bigint_init(q);     /* Start with quotient = 0 */
+    
+    bigint_t temp_quotient, temp_remainder;
     bigint_init(&temp_quotient);
     bigint_init(&temp_remainder);
-    bigint_init(&shifted_divisor);
     
     /* Process bit by bit from MSB to LSB */
     for (int bit = dividend_bits - 1; bit >= 0; bit--) {
+        /* Check for runaway growth */
+        if (r->used > BIGINT_4096_WORDS - 10) {
+            printf("[DEBUG_DIV] Remainder growing too large at bit %d\n", bit);
+            return -3;
+        }
+        
         /* Shift remainder left by 1 */
         int ret = bigint_shift_left(&temp_remainder, r, 1);
-        if (ret != 0) return ret;
+        if (ret != 0) {
+            printf("[DEBUG_DIV] Shift left failed at bit %d: %d\n", bit, ret);
+            return ret;
+        }
         bigint_copy(r, &temp_remainder);
         
         /* Set LSB to current bit of dividend */
@@ -573,19 +596,32 @@ int bigint_div(bigint_t *q, bigint_t *r, const bigint_t *a, const bigint_t *b) {
         /* If remainder >= divisor, subtract divisor and set quotient bit */
         if (bigint_compare(r, b) >= 0) {
             ret = bigint_sub(&temp_remainder, r, b);
-            if (ret != 0) return ret;
+            if (ret != 0) {
+                printf("[DEBUG_DIV] Subtraction failed at bit %d: %d\n", bit, ret);
+                return ret;
+            }
             bigint_copy(r, &temp_remainder);
             
             /* Set bit in quotient */
             ret = bigint_shift_left(&temp_quotient, q, 1);
-            if (ret != 0) return ret;
+            if (ret != 0) {
+                printf("[DEBUG_DIV] Quotient shift failed at bit %d: %d\n", bit, ret);
+                return ret;
+            }
             bigint_copy(q, &temp_quotient);
             q->words[0] |= 1;
         } else {
             /* Just shift quotient left */
             ret = bigint_shift_left(&temp_quotient, q, 1);
-            if (ret != 0) return ret;
+            if (ret != 0) {
+                printf("[DEBUG_DIV] Quotient shift failed at bit %d: %d\n", bit, ret);
+                return ret;
+            }
             bigint_copy(q, &temp_quotient);
+        }
+        
+        if ((dividend_bits - bit) % 500 == 0) {
+            printf("[DEBUG_DIV] Progress: bit %d, r.used=%d\n", bit, r->used);
         }
     }
     
@@ -595,6 +631,9 @@ int bigint_div(bigint_t *q, bigint_t *r, const bigint_t *a, const bigint_t *b) {
 int bigint_mod(bigint_t *r, const bigint_t *a, const bigint_t *m) {
     if (!r || !a || !m) return -1;
     
+    printf("[DEBUG_MOD] Input: a.used=%d, m.used=%d\n", a->used, m->used);
     bigint_t q;
-    return bigint_div(&q, r, a, m);
+    int ret = bigint_div(&q, r, a, m);
+    printf("[DEBUG_MOD] Division result: %d, r.used=%d\n", ret, r->used);
+    return ret;
 }
