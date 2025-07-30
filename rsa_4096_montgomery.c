@@ -488,7 +488,7 @@ void montgomery_ctx_print_info(const montgomery_ctx_t *ctx) {
 int montgomery_redc(bigint_t *result, const bigint_t *T, const montgomery_ctx_t *ctx) {
     printf("[REDC_COMPLETE] Starting Complete Montgomery REDC\n");
     
-    /* TODO: Critical input validation for round-trip safety */
+    /* TODO: CRITICAL ROUND-TRIP VALIDATION - check all inputs */
     if (result == NULL || T == NULL || ctx == NULL) {
         ERROR_RETURN(-1, "NULL pointer in montgomery_redc");
     }
@@ -497,14 +497,25 @@ int montgomery_redc(bigint_t *result, const bigint_t *T, const montgomery_ctx_t 
         ERROR_RETURN(-2, "Montgomery context is disabled");
     }
     
-    /* TODO: FIXME - Validate Montgomery context integrity */
+    /* TODO: FIXME - Validate Montgomery context integrity for round-trip safety */
     if (bigint_is_zero(&ctx->n) || ctx->n_prime == 0) {
         ERROR_RETURN(-3, "Invalid Montgomery context parameters");
     }
     
-    /* TODO: Input range validation */
+    /* TODO: Critical input range validation */
     VALIDATE_OVERFLOW(T, "montgomery_redc input T");
     debug_print_bigint("Input T", T);
+    
+    /* TODO: Validate input is in expected range for REDC */
+    if (T->used > ctx->n_words * 2 + 5) {
+        printf("[ROUND_TRIP_DEBUG] WARNING: REDC input T has %d words, modulus has %d words\n", 
+               T->used, ctx->n_words);
+        printf("[ROUND_TRIP_DEBUG] This could indicate overflow or invalid input\n");
+    }
+    
+    /* TODO: Store original for debugging */
+    bigint_t original_T;
+    bigint_copy(&original_T, T);
     
     /* COMPLETE MONTGOMERY REDC ALGORITHM - ENHANCED WITH ROUND-TRIP VALIDATION */
     /* Algorithm: REDC(T) where T < n * R */
@@ -516,9 +527,15 @@ int montgomery_redc(bigint_t *result, const bigint_t *T, const montgomery_ctx_t 
     /* 4. if A >= n then A = A - n */
     /* 5. return A */
     
-    /* Create working copy A = T */
+    /* FIXME: Critical - Create working copy A = T */
     bigint_t A;
     bigint_copy(&A, T);
+    
+    /* TODO: Add validation after copy */
+    if (bigint_compare(&A, T) != 0) {
+        printf("[ROUND_TRIP_DEBUG] CRITICAL: Copy operation failed in REDC\n");
+        ERROR_RETURN(-94, "Failed to copy input in REDC");
+    }
     
     /* FIXED: Ensure A has enough words for the algorithm with overflow protection */
     int max_words = ctx->n_words * 2 + 10;
@@ -527,25 +544,37 @@ int montgomery_redc(bigint_t *result, const bigint_t *T, const montgomery_ctx_t 
         CHECKPOINT(LOG_ERROR, "WARNING: REDC buffer size limited, potential overflow");
     }
     
-    /* FIXED: Properly extend A with zeros */
+    /* FIXME: Properly extend A with zeros - critical for algorithm correctness */
     bigint_ensure_capacity(&A, max_words);
     
     printf("[REDC_COMPLETE] Working with A: %d words\n", A.used);
     debug_print_bigint("Initial A", &A);
     
-    /* Montgomery REDC main loop - GIỮ NGUYÊN HOÀN TOÀN */
+    /* TODO: Add pre-loop validation */
+    VALIDATE_OVERFLOW(&A, "REDC working array A before loop");
+    
+    /* Montgomery REDC main loop - ENHANCED WITH VALIDATION */
     for (int i = 0; i < ctx->n_words; i++) {
         if (i % 10 == 0 || i < 5) {
             printf("[REDC_COMPLETE] === Iteration %d/%d ===\n", i + 1, ctx->n_words);
         }
         
         /* Step 1: m = A[i] * n' mod 2^32 */
+        /* TODO: CRITICAL - Validate array bounds */
         uint32_t A_i = (i < A.used) ? A.words[i] : 0;
+        
+        /* FIXME: Critical multiplication for round-trip correctness */
         uint32_t m = (A_i * ctx->n_prime) & 0xFFFFFFFF;
         
         if (i < 5) {
             printf("[REDC_COMPLETE] A[%d] = 0x%08x, n' = 0x%08x, m = 0x%08x\n", 
                    i, A_i, ctx->n_prime, m);
+        }
+        
+        /* TODO: Add validation for small values */
+        if (ctx->n_words == 1 && i == 0) {
+            printf("[ROUND_TRIP_DEBUG] Single-word REDC: A[0]=0x%x, n'=0x%x, m=0x%x\n", 
+                   A_i, ctx->n_prime, m);
         }
         
         /* Step 2: A = A + m * n * 2^(32*i) */
@@ -662,7 +691,7 @@ int montgomery_to_form(bigint_t *result, const bigint_t *a, const montgomery_ctx
     debug_print_bigint("Input a", a);
     debug_print_bigint("R^2 mod n", &ctx->r_squared);
     
-    /* TODO: Critical validation for round-trip safety */
+    /* TODO: CRITICAL ROUND-TRIP VALIDATION - check for zero/invalid inputs */
     if (result == NULL || a == NULL || ctx == NULL) {
         ERROR_RETURN(-1, "NULL pointer in montgomery_to_form");
     }
@@ -671,14 +700,29 @@ int montgomery_to_form(bigint_t *result, const bigint_t *a, const montgomery_ctx
         ERROR_RETURN(-2, "Montgomery context disabled");
     }
     
-    /* TODO: FIXME - Input validation for conversion safety */
+    /* FIXME: Critical validation - input range checking for small modulus */
     VALIDATE_OVERFLOW(a, "montgomery_to_form input");
     if (bigint_compare(a, &ctx->n) >= 0) {
         CHECKPOINT(LOG_ERROR, "WARNING: Input a >= modulus in to_form conversion");
         debug_print_bigint("input a", a);
         debug_print_bigint("modulus n", &ctx->n);
+        
+        /* TODO: Auto-reduce input to valid range */
+        bigint_t reduced_a;
+        int ret = bigint_mod(&reduced_a, a, &ctx->n);
+        if (ret != 0) {
+            ERROR_RETURN(ret, "Failed to reduce input in to_form");
+        }
+        printf("[ROUND_TRIP_DEBUG] Auto-reduced input: ");
+        debug_print_bigint("reduced_a", &reduced_a);
+        return montgomery_to_form(result, &reduced_a, ctx);
     }
     
+    /* TODO: Store original for validation */
+    bigint_t original_a;
+    bigint_copy(&original_a, a);
+    
+    /* FIXME: Critical multiplication - a * R^2 mod n */
     /* a_mont = (a * R^2) * R^(-1) mod n = a * R mod n */
     bigint_t temp;
     int ret = bigint_mul(&temp, a, &ctx->r_squared);
@@ -686,28 +730,60 @@ int montgomery_to_form(bigint_t *result, const bigint_t *a, const montgomery_ctx
         ERROR_RETURN(ret, "Failed to compute a * R^2");
     }
     
-    /* TODO: Check intermediate result for overflow */
+    /* TODO: CRITICAL - Check intermediate result for overflow */
     VALIDATE_OVERFLOW(&temp, "montgomery_to_form multiplication");
     debug_print_bigint("a * R^2", &temp);
     
+    /* TODO: Add manual verification for small values */
+    if (a->used == 1 && ctx->r_squared.used <= 2) {
+        printf("[ROUND_TRIP_DEBUG] Manual verification for a=%u, R^2 first word=%u\n", 
+               a->words[0], ctx->r_squared.words[0]);
+    }
+    
+    /* FIXME: REDC operation critical for round-trip correctness */
     ret = montgomery_redc(result, &temp, ctx);
     if (ret != 0) {
         ERROR_RETURN(ret, "Failed REDC in to_form");
     }
     
-    /* TODO: Final validation of conversion result */
+    /* TODO: CRITICAL - Final validation of conversion result */
     if (bigint_compare(result, &ctx->n) >= 0) {
         CHECKPOINT(LOG_ERROR, "CRITICAL: to_form result >= modulus");
         debug_print_bigint("result", result);
         debug_print_bigint("modulus", &ctx->n);
+        ERROR_RETURN(-97, "to_form produced invalid result >= modulus");
     }
     
-    /* TODO: Normalize result */
+    /* TODO: Validate result is not zero unless input was zero */
+    if (bigint_is_zero(result) && !bigint_is_zero(&original_a)) {
+        printf("[ROUND_TRIP_DEBUG] WARNING: Non-zero input produced zero Montgomery form\n");
+        debug_print_bigint("original_a", &original_a);
+    }
+    
+    /* TODO: Normalize result - critical for consistency */
     bigint_normalize(result);
     debug_print_bigint("Montgomery form result", result);
     
     /* TODO: Add round-trip validation logging */
     LOG_CONVERSION("to_form", a, result);
+    
+    /* TODO: Test round-trip immediately for validation */
+    if (ctx->n_words == 1) { /* Only for small modulus where we can afford extra validation */
+        bigint_t test_back;
+        int test_ret = montgomery_from_form(&test_back, result, ctx);
+        if (test_ret == 0) {
+            if (bigint_compare(&test_back, &original_a) != 0) {
+                printf("[ROUND_TRIP_DEBUG] CRITICAL: Immediate round-trip validation failed!\n");
+                debug_print_bigint("original", &original_a);
+                debug_print_bigint("to_form", result);
+                debug_print_bigint("back_from_form", &test_back);
+                ERROR_RETURN(-96, "Round-trip validation failed in to_form");
+            } else {
+                printf("[ROUND_TRIP_DEBUG] ✓ Immediate round-trip validation passed\n");
+            }
+        }
+    }
+    
     return 0;
 }
 
@@ -724,19 +800,34 @@ int montgomery_from_form(bigint_t *result, const bigint_t *a, const montgomery_c
         ERROR_RETURN(-2, "Montgomery context disabled");
     }
     
-    /* TODO: FIXME - Input validation for conversion safety */
+    /* FIXME: CRITICAL - Input validation for conversion safety with small modulus */
     VALIDATE_OVERFLOW(a, "montgomery_from_form input");
     if (bigint_compare(a, &ctx->n) >= 0) {
         CHECKPOINT(LOG_ERROR, "WARNING: Montgomery input >= modulus in from_form conversion");
         debug_print_bigint("input a", a);
         debug_print_bigint("modulus n", &ctx->n);
+        
+        /* TODO: Auto-reduce input to valid range */
+        bigint_t reduced_a;
+        int ret = bigint_mod(&reduced_a, a, &ctx->n);
+        if (ret != 0) {
+            ERROR_RETURN(ret, "Failed to reduce input in from_form");
+        }
+        printf("[ROUND_TRIP_DEBUG] Auto-reduced Montgomery input: ");
+        debug_print_bigint("reduced_a", &reduced_a);
+        return montgomery_from_form(result, &reduced_a, ctx);
     }
+    
+    /* TODO: Store original for validation */
+    bigint_t original_a;
+    bigint_copy(&original_a, a);
     
     /* Check if r_inv is available - TODO: this check might be redundant */
     if (bigint_is_zero(&ctx->r_inv) && ctx->r_inv.used == 0) {
         printf("[MONT_FROM_COMPLETE] R^(-1) not available, using REDC-only method\n");
     }
     
+    /* FIXME: Critical REDC operation for round-trip correctness */
     /* a_normal = a_mont * R^(-1) mod n */
     /* This is accomplished by REDC(a_mont * 1) = REDC(a_mont) */
     int ret = montgomery_redc(result, a, ctx);
@@ -744,19 +835,34 @@ int montgomery_from_form(bigint_t *result, const bigint_t *a, const montgomery_c
         ERROR_RETURN(ret, "Failed REDC in from_form");
     }
     
-    /* TODO: Final validation of conversion result */
+    /* TODO: CRITICAL - Final validation of conversion result */
     if (bigint_compare(result, &ctx->n) >= 0) {
         CHECKPOINT(LOG_ERROR, "CRITICAL: from_form result >= modulus");
         debug_print_bigint("result", result);
         debug_print_bigint("modulus", &ctx->n);
+        ERROR_RETURN(-95, "from_form produced invalid result >= modulus");
     }
     
-    /* TODO: Normalize result */
+    /* TODO: Validate result consistency */
+    if (bigint_is_zero(result) && !bigint_is_zero(&original_a)) {
+        printf("[ROUND_TRIP_DEBUG] WARNING: Non-zero Montgomery input produced zero normal form\n");
+        debug_print_bigint("original_a", &original_a);
+    }
+    
+    /* TODO: Normalize result - critical for consistency */
     bigint_normalize(result);
     debug_print_bigint("Normal form result", result);
     
     /* TODO: Add round-trip validation logging */
     LOG_CONVERSION("from_form", a, result);
+    
+    /* TODO: Additional validation for small modulus */
+    if (ctx->n_words == 1) {
+        printf("[ROUND_TRIP_DEBUG] Extra validation: from_form with single-word modulus\n");
+        printf("  Input Montgomery form: %u\n", original_a.used > 0 ? original_a.words[0] : 0);
+        printf("  Output normal form: %u\n", result->used > 0 ? result->words[0] : 0);
+        printf("  Modulus: %u\n", ctx->n.words[0]);
+    }
     return 0;
 }
 

@@ -62,28 +62,53 @@ int bigint_is_one(const bigint_t *a) {
 void bigint_normalize(bigint_t *a) {
     if (a == NULL) return;
     
-    /* TODO: Add validation for word array bounds */
+    /* TODO: CRITICAL ROUND-TRIP VALIDATION - Add comprehensive bounds checking */
     if (a->used > BIGINT_4096_WORDS) {
         CHECKPOINT(LOG_ERROR, "CRITICAL: bigint_normalize detected overflow - used=%d, max=%d", 
                   a->used, BIGINT_4096_WORDS);
         a->used = BIGINT_4096_WORDS;
     }
     
-    /* Remove leading zeros */
+    /* TODO: Store original state for debugging */
+    int original_used = a->used;
+    
+    /* FIXME: Critical normalization - remove leading zeros */
     while (a->used > 0 && a->words[a->used - 1] == 0) {
         a->used--;
     }
     
-    /* Ensure at least one word for zero */
+    /* TODO: Log significant normalization changes */
+    if (original_used != a->used && original_used - a->used > 1) {
+        printf("[ROUND_TRIP_DEBUG] Normalization: reduced from %d to %d words (removed %d leading zeros)\n", 
+               original_used, a->used, original_used - a->used);
+    }
+    
+    /* FIXME: Ensure at least one word for zero - critical for zero representation */
     if (a->used == 0) {
         a->used = 1;
         a->words[0] = 0;
     }
     
-    /* TODO: Add sign validation */
+    /* TODO: CRITICAL - Add sign validation for round-trip safety */
     if (a->sign != 0 && a->sign != 1) {
         CHECKPOINT(LOG_ERROR, "WARNING: Invalid sign value %d in bigint_normalize", a->sign);
         a->sign = 0;  /* Default to positive */
+    }
+    
+    /* TODO: Additional validation for single-word values */
+    if (a->used == 1) {
+        if (a->words[0] == 0 && a->sign != 0) {
+            printf("[ROUND_TRIP_DEBUG] WARNING: Zero value with non-zero sign, correcting\n");
+            a->sign = 0;
+        }
+    }
+    
+    /* TODO: Detect and warn about potential corruption */
+    for (int i = a->used; i < BIGINT_4096_WORDS && i < a->used + 5; i++) {
+        if (a->words[i] != 0) {
+            printf("[ROUND_TRIP_DEBUG] WARNING: Non-zero word at index %d beyond used=%d, value=0x%x\n", 
+                   i, a->used, a->words[i]);
+        }
     }
 }
 

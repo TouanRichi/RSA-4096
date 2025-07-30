@@ -214,63 +214,144 @@ int bigint_mod_exp(bigint_t *result, const bigint_t *base, const bigint_t *exp, 
     int bit_count = 0;
     while (!bigint_is_zero(&temp_exp)) {
         /* Check if current bit is 1 */
+        /* TODO: CRITICAL - Bit checking logic for round-trip correctness */
         if (temp_exp.words[0] & 1) {
             if (bit_count < 10 || bit_count % 50 == 0) {
                 printf("[MOD_EXP_COMPLETE] Bit %d is 1, multiplying result by base\n", bit_count);
             }
             
+            /* FIXME: Critical multiplication step - any error here corrupts round-trip */
             bigint_t new_result, product;
             bigint_init(&new_result);
             bigint_init(&product);
+            
+            /* TODO: Add pre-multiplication validation */
+            VALIDATE_OVERFLOW(&temp_result, "result before multiplication");
+            VALIDATE_OVERFLOW(&temp_base, "base before multiplication");
+            
             ret = bigint_mul(&product, &temp_result, &temp_base);
             if (ret != 0) {
                 ERROR_RETURN(ret, "Multiplication failed in binary method bit %d", bit_count);
             }
             
-            /* TODO: Validate intermediate multiplication result */
+            /* TODO: Critical - validate intermediate multiplication result */
             VALIDATE_OVERFLOW(&product, "binary method multiplication");
             
+            /* TODO: Add manual verification for small values */
+            if (temp_result.used == 1 && temp_base.used == 1 && 
+                temp_result.words[0] < 65536 && temp_base.words[0] < 65536) {
+                uint64_t manual_product = (uint64_t)temp_result.words[0] * temp_base.words[0];
+                uint64_t computed_product = 0;
+                if (product.used == 1) {
+                    computed_product = product.words[0];
+                } else if (product.used == 2) {
+                    computed_product = ((uint64_t)product.words[1] << 32) | product.words[0];
+                }
+                if (manual_product != computed_product) {
+                    printf("[ROUND_TRIP_DEBUG] CRITICAL: Multiplication mismatch at bit %d - manual=0x%llx, computed=0x%llx\n", 
+                           bit_count, (unsigned long long)manual_product, (unsigned long long)computed_product);
+                }
+            }
+            
+            /* FIXME: Modular reduction critical for round-trip safety */
             ret = bigint_mod(&new_result, &product, mod);
             if (ret != 0) {
                 ERROR_RETURN(ret, "Modular reduction failed in binary method bit %d", bit_count);
             }
             
+            /* TODO: Validate reduction correctness */
+            if (bigint_compare(&new_result, mod) >= 0) {
+                printf("[ROUND_TRIP_DEBUG] ERROR: Reduction failed at bit %d - result >= modulus\n", bit_count);
+                ERROR_RETURN(-98, "Invalid modular reduction result");
+            }
+            
+            /* FIXME: Critical copy operation */
             bigint_copy(&temp_result, &new_result);
-            /* TODO: Normalize after each step */
+            
+            /* TODO: Normalize after each step - critical for consistency */
             bigint_normalize(&temp_result);
+            
+            /* TODO: Add comprehensive post-step validation */
+            VALIDATE_OVERFLOW(&temp_result, "result after bit processing");
         }
         
         /* Right shift exponent by 1 bit - FIXED: Use temporary variable */
+        /* TODO: CRITICAL ROUND-TRIP VALIDATION - Verify shift doesn't corrupt exponent */
         bigint_t new_exp;
         bigint_init(&new_exp);
+        
+        /* FIXME: Potential issue - ensure shift operation preserves integrity */
         ret = bigint_shift_right(&new_exp, &temp_exp, 1);
         if (ret != 0) {
             ERROR_RETURN(ret, "Right shift failed in binary method");
         }
+        
+        /* TODO: Add validation that shift produced expected result */
+        if (temp_exp.used > 0 && new_exp.used > 0) {
+            uint32_t expected_msb = temp_exp.words[0] >> 1;
+            if (temp_exp.used == 1 && new_exp.used == 1 && new_exp.words[0] != expected_msb) {
+                printf("[ROUND_TRIP_DEBUG] WARNING: Shift result mismatch - expected 0x%x, got 0x%x\n", 
+                       expected_msb, new_exp.words[0]);
+            }
+        }
+        
+        /* FIXME: Critical copy operation that could fail silently */
         bigint_copy(&temp_exp, &new_exp);
         
+        /* TODO: Add validation after copy */
+        VALIDATE_OVERFLOW(&temp_exp, "exponent after shift and copy");
+        
         /* Square the base for next iteration */
+        /* TODO: FIXME - Base squaring critical for round-trip correctness */
         if (!bigint_is_zero(&temp_exp)) {
             bigint_t squared_base, new_base;
             bigint_init(&squared_base);
             bigint_init(&new_base);
             
+            /* FIXME: Multiplication overflow possible with large bases */
             ret = bigint_mul(&squared_base, &temp_base, &temp_base);
             if (ret != 0) {
                 ERROR_RETURN(ret, "Base squaring failed in binary method");
             }
             
-            /* TODO: Check for squaring overflow */
+            /* TODO: Critical validation - check multiplication didn't overflow */
             VALIDATE_OVERFLOW(&squared_base, "base squaring");
             
+            /* TODO: Add manual verification for small cases */
+            if (temp_base.used == 1 && temp_base.words[0] < 65536) {
+                uint64_t manual_square = (uint64_t)temp_base.words[0] * temp_base.words[0];
+                uint64_t computed_square = 0;
+                if (squared_base.used == 1) {
+                    computed_square = squared_base.words[0];
+                } else if (squared_base.used == 2) {
+                    computed_square = ((uint64_t)squared_base.words[1] << 32) | squared_base.words[0];
+                }
+                if (manual_square != computed_square) {
+                    printf("[ROUND_TRIP_DEBUG] CRITICAL: Squaring mismatch - manual=0x%llx, computed=0x%llx\n", 
+                           (unsigned long long)manual_square, (unsigned long long)computed_square);
+                }
+            }
+            
+            /* FIXME: Modular reduction critical - must not lose precision */
             ret = bigint_mod(&new_base, &squared_base, mod);
             if (ret != 0) {
                 ERROR_RETURN(ret, "Base reduction failed in binary method");
             }
             
+            /* TODO: Validate reduction preserved correctness */
+            if (bigint_compare(&new_base, mod) >= 0) {
+                printf("[ROUND_TRIP_DEBUG] ERROR: Reduction failed - result >= modulus\n");
+                ERROR_RETURN(-99, "Modular reduction produced invalid result");
+            }
+            
+            /* FIXME: Critical copy that could corrupt base */
             bigint_copy(&temp_base, &new_base);
-            /* TODO: Normalize squared base */
+            
+            /* TODO: Normalize squared base - critical for next iteration */
             bigint_normalize(&temp_base);
+            
+            /* TODO: Add comprehensive validation */
+            VALIDATE_OVERFLOW(&temp_base, "base after squaring and reduction");
         }
         
         bit_count++;
