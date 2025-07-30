@@ -150,14 +150,10 @@ int bigint_mod_exp(bigint_t *result, const bigint_t *base, const bigint_t *exp, 
             bigint_t new_result, product;
             bigint_init(&new_result);
             bigint_init(&product);
-            printf("[DEBUG_ARITH] About to multiply: temp_result.used=%d, temp_base.used=%d\n", temp_result.used, temp_base.used);
             ret = bigint_mul(&product, &temp_result, &temp_base);
-            printf("[DEBUG_ARITH] Multiplication result: %d\n", ret);
             if (ret != 0) return ret;
             
-            printf("[DEBUG_ARITH] About to mod: product.used=%d, mod.used=%d\n", product.used, mod->used);
             ret = bigint_mod(&new_result, &product, mod);
-            printf("[DEBUG_ARITH] Mod result: %d\n", ret);
             if (ret != 0) return ret;
             
             bigint_copy(&temp_result, &new_result);
@@ -176,14 +172,10 @@ int bigint_mod_exp(bigint_t *result, const bigint_t *base, const bigint_t *exp, 
             bigint_init(&new_base);
             bigint_init(&square);
             
-            printf("[DEBUG_ARITH] About to square: temp_base.used=%d\n", temp_base.used);
             ret = bigint_mul(&square, &temp_base, &temp_base);
-            printf("[DEBUG_ARITH] Squaring result: %d\n", ret);
             if (ret != 0) return ret;
             
-            printf("[DEBUG_ARITH] About to mod square: square.used=%d, mod.used=%d\n", square.used, mod->used);
             ret = bigint_mod(&new_base, &square, mod);
-            printf("[DEBUG_ARITH] Mod square result: %d\n", ret);
             if (ret != 0) return ret;
             
             bigint_copy(&temp_base, &new_base);
