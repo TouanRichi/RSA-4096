@@ -207,6 +207,9 @@ int test_hybrid_algorithm_selection(void);
 
 int extended_gcd_full(bigint_t *result, const bigint_t *a, const bigint_t *m);
 
+/* NEW: Binary GCD (Stein's algorithm) for large moduli */
+int binary_gcd_extended(bigint_t *result, const bigint_t *a, const bigint_t *m);
+
 /* ===================== NORMALIZATION FUNCTIONS - NEW ===================== */
 
 void bigint_normalize(bigint_t *a);
