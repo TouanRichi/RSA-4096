@@ -19,7 +19,7 @@
 /* BigInt configuration for 4096-bit numbers */
 #define BIGINT_WORD_SIZE 32
 #define BIGINT_WORD_MASK 0xFFFFFFFFUL
-#define BIGINT_4096_WORDS 128  /* 4096 / 32 = 128 words */
+#define BIGINT_4096_WORDS 256  /* Doubled to 256 words to handle Montgomery multiplication */
 
 /* Montgomery REDC specific constants */
 #define MONTGOMERY_R_WORDS 132  /* Slightly larger than modulus for R */
