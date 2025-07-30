@@ -288,3 +288,92 @@ int mod_inverse_extended_gcd(bigint_t *result, const bigint_t *a, const bigint_t
     /* Use the complete extended GCD implementation - NO CHANGES to algorithm */
     return extended_gcd_full(result, a, m);
 }
+
+/* ===================== HYBRID ALGORITHM SELECTION - TERRANTSH MODEL ===================== */
+
+/**
+ * @brief Hybrid modular exponentiation with intelligent algorithm selection
+ * 
+ * This implements a hybrid system referencing the Terrantsh RSA4096 model approach:
+ * - Automatically chooses optimal algorithm based on modulus size and runtime conditions
+ * - Uses Montgomery REDC for suitable cases (odd modulus, adequate buffer space)
+ * - Falls back to traditional modular exponentiation (like terrantsh/RSA4096) when Montgomery is not optimal
+ * - Provides comprehensive error handling and performance optimization
+ */
+int hybrid_mod_exp(bigint_t *result, const bigint_t *base, const bigint_t *exp, 
+                   const bigint_t *modulus, const montgomery_ctx_t *mont_ctx) {
+    
+    if (result == NULL || base == NULL || exp == NULL || modulus == NULL) {
+        CHECKPOINT(LOG_ERROR, "hybrid_mod_exp: NULL pointer argument");
+        return -1;
+    }
+    
+    if (bigint_is_zero(modulus)) {
+        CHECKPOINT(LOG_ERROR, "hybrid_mod_exp: Zero modulus not allowed");
+        return -2;
+    }
+    
+    CHECKPOINT(LOG_INFO, "Hybrid algorithm selection for %d-bit modulus", bigint_bit_length(modulus));
+    
+    /* Algorithm selection logic - Terrantsh model inspired */
+    int use_montgomery = 0;
+    const char *algorithm_choice = "traditional";
+    const char *reason = "default fallback";
+    
+    /* Check 1: Montgomery context availability */
+    if (mont_ctx != NULL && mont_ctx->is_active) {
+        
+        /* Check 2: Modulus must be odd (Montgomery requirement) */
+        if ((modulus->words[0] & 1) == 1) {
+            
+            /* Check 3: Buffer capacity check */
+            int modulus_bits = bigint_bit_length(modulus);
+            int required_words = (modulus_bits + 31) / 32;
+            
+            if (required_words <= BIGINT_4096_WORDS / 4) {  /* Use 1/4 of buffer as safety margin */
+                
+                /* Check 4: Performance threshold - Montgomery is better for larger modulus */
+                if (modulus_bits >= 512) {  /* 512+ bits favor Montgomery */
+                    use_montgomery = 1;
+                    algorithm_choice = "Montgomery REDC";
+                    reason = "optimal for large modulus";
+                } else {
+                    reason = "modulus too small for Montgomery efficiency";
+                }
+            } else {
+                reason = "insufficient buffer space for Montgomery intermediate results";
+            }
+        } else {
+            reason = "even modulus (Montgomery requires odd modulus)";
+        }
+    } else {
+        reason = "Montgomery context not available or inactive";
+    }
+    
+    CHECKPOINT(LOG_INFO, "Algorithm selection: %s (%s)", algorithm_choice, reason);
+    
+    /* Execute chosen algorithm */
+    int ret;
+    if (use_montgomery) {
+        CHECKPOINT(LOG_INFO, "Executing Montgomery REDC exponentiation");
+        ret = montgomery_exp(result, base, exp, mont_ctx);
+        if (ret != 0) {
+            CHECKPOINT(LOG_ERROR, "Montgomery exponentiation failed (code %d), falling back to traditional", ret);
+            /* Fallback to traditional method - Terrantsh model approach */
+            CHECKPOINT(LOG_INFO, "Fallback: Using traditional modular exponentiation (Terrantsh model)");
+            ret = bigint_mod_exp(result, base, exp, modulus);
+        }
+    } else {
+        CHECKPOINT(LOG_INFO, "Executing traditional modular exponentiation (Terrantsh model)");
+        ret = bigint_mod_exp(result, base, exp, modulus);
+    }
+    
+    if (ret == 0) {
+        CHECKPOINT(LOG_INFO, "Hybrid modular exponentiation completed successfully using %s", 
+                  use_montgomery ? "Montgomery REDC" : "traditional algorithm");
+    } else {
+        CHECKPOINT(LOG_ERROR, "Hybrid modular exponentiation failed with code %d", ret);
+    }
+    
+    return ret;
+}

@@ -19,10 +19,10 @@
 /* BigInt configuration for 4096-bit numbers */
 #define BIGINT_WORD_SIZE 32
 #define BIGINT_WORD_MASK 0xFFFFFFFFUL
-#define BIGINT_4096_WORDS 256  /* Doubled to 256 words to handle Montgomery multiplication */
+#define BIGINT_4096_WORDS 512  /* Increased to 512 words to handle full RSA-4096 Montgomery multiplication and intermediate results */
 
 /* Montgomery REDC specific constants */
-#define MONTGOMERY_R_WORDS 132  /* Slightly larger than modulus for R */
+#define MONTGOMERY_R_WORDS 264  /* Doubled to handle larger R values for 4096-bit modulus */
 
 /* Algorithm limits */
 #define MAX_DIVISION_ITERATIONS 10000
@@ -132,6 +132,26 @@ int bigint_add_word(bigint_t *result, const bigint_t *a, uint32_t word);
 int bigint_mod_exp(bigint_t *result, const bigint_t *base, const bigint_t *exp, const bigint_t *mod);
 int mod_inverse_extended_gcd(bigint_t *result, const bigint_t *a, const bigint_t *m);
 
+/* ===================== HYBRID ALGORITHM SELECTION - TERRANTSH MODEL ===================== */
+
+/**
+ * @brief Hybrid modular exponentiation with intelligent algorithm selection
+ * 
+ * This function implements a hybrid approach referencing the Terrantsh RSA4096 model:
+ * - Automatically chooses between Montgomery REDC and traditional modular exponentiation
+ * - Falls back to traditional algorithm (like terrantsh/RSA4096) if Montgomery is not suitable
+ * - Considers modulus size, buffer capacity, and runtime conditions for optimal performance
+ * 
+ * @param result Output: result of base^exp mod modulus
+ * @param base Input base
+ * @param exp Input exponent  
+ * @param modulus Input modulus
+ * @param mont_ctx Montgomery context (can be NULL for traditional-only mode)
+ * @return 0 on success, negative on error
+ */
+int hybrid_mod_exp(bigint_t *result, const bigint_t *base, const bigint_t *exp, 
+                   const bigint_t *modulus, const montgomery_ctx_t *mont_ctx);
+
 /* ===================== MONTGOMERY REDC OPERATIONS - FIXED ===================== */
 
 /* Montgomery context management */
@@ -178,6 +198,9 @@ int run_benchmarks(void);
 int test_large_rsa_keys(void);
 int run_manual_key_test(void);
 int test_real_rsa_4096(void);
+
+/* Test hybrid algorithm selection */
+int test_hybrid_algorithm_selection(void);
 
 /* ===================== HELPER FUNCTIONS - FIXED ===================== */
 
