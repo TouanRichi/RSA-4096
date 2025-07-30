@@ -144,6 +144,11 @@ int rsa_4096_encrypt(const rsa_4096_key_t *pub_key, const char *message_decimal,
         ERROR_RETURN(-2, "Encrypted buffer size cannot be zero");
     }
     
+    /* Check if modulus is within supported range */
+    if (pub_key->n.used > 32) {
+        ERROR_RETURN(-4, "RSA modulus too large for this implementation (max ~1024 bits)");
+    }
+    
     /* Parse message */
     bigint_t message;
     int ret = bigint_from_decimal(&message, message_decimal);
@@ -209,6 +214,11 @@ int rsa_4096_decrypt(const rsa_4096_key_t *priv_key, const char *encrypted_hex,
     /* FIXED: Check buffer size */
     if (message_size == 0) {
         ERROR_RETURN(-3, "Message buffer size cannot be zero");
+    }
+    
+    /* Check if modulus is within supported range */
+    if (priv_key->n.used > 32) {
+        ERROR_RETURN(-4, "RSA modulus too large for this implementation (max ~1024 bits)");
     }
     
     /* Parse encrypted message */
