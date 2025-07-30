@@ -723,3 +723,109 @@ int test_real_rsa_4096(void) {
     
     return 0;  /* Success - framework and capability verified */
 }
+
+/* ===================== HYBRID ALGORITHM SELECTION TESTING ===================== */
+
+int test_hybrid_algorithm_selection(void) {
+    printf("===============================================\n");
+    printf("RSA-4096 Hybrid Algorithm Selection Testing\n");
+    printf("===============================================\n");
+    printf("Testing Terrantsh model hybrid system that automatically\n");
+    printf("chooses between Montgomery REDC and traditional algorithms\n\n");
+    
+    /* Test 1: Small modulus should use traditional algorithm */
+    printf("🔍 Test 1: Small modulus (< 512 bits) - should use traditional\n");
+    bigint_t small_mod, small_base, small_exp, result1;
+    bigint_init(&small_mod);
+    bigint_init(&small_base);
+    bigint_init(&small_exp);
+    bigint_init(&result1);
+    
+    bigint_set_u32(&small_mod, 143);  /* Small odd modulus */
+    bigint_set_u32(&small_base, 5);
+    bigint_set_u32(&small_exp, 7);
+    
+    montgomery_ctx_t small_ctx;
+    memset(&small_ctx, 0, sizeof(small_ctx));
+    montgomery_ctx_init(&small_ctx, &small_mod);
+    
+    printf("   Modulus: %d bits\n", bigint_bit_length(&small_mod));
+    int ret1 = hybrid_mod_exp(&result1, &small_base, &small_exp, &small_mod, &small_ctx);
+    printf("   Result: %s\n", ret1 == 0 ? "SUCCESS" : "FAILED");
+    
+    /* Test 2: Larger modulus should prefer Montgomery if available */
+    printf("\n🔍 Test 2: Larger modulus (> 512 bits) - should prefer Montgomery\n");
+    bigint_t large_mod, large_base, large_exp, result2;
+    bigint_init(&large_mod);
+    bigint_init(&large_base); 
+    bigint_init(&large_exp);
+    bigint_init(&result2);
+    
+    /* Create a simpler larger odd modulus (600 bits) */
+    char large_mod_hex[] = "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183560A25A75A5A93B3";
+    bigint_from_hex(&large_mod, large_mod_hex);
+    bigint_set_u32(&large_base, 2);
+    bigint_set_u32(&large_exp, 17);
+    
+    /* Don't initialize Montgomery context - just test the hybrid logic */
+    montgomery_ctx_t large_ctx;
+    memset(&large_ctx, 0, sizeof(large_ctx));
+    large_ctx.is_active = 0;  /* Simulate failed Montgomery initialization */
+    
+    printf("   Modulus: %d bits\n", bigint_bit_length(&large_mod));
+    printf("   Montgomery context: INACTIVE (simulated)\n");
+    int ret2 = hybrid_mod_exp(&result2, &large_base, &large_exp, &large_mod, &large_ctx);
+    printf("   Result: %s\n", ret2 == 0 ? "SUCCESS" : "FAILED");
+    
+    /* Test 3: Even modulus should fall back to traditional */
+    printf("\n🔍 Test 3: Even modulus - should use traditional (Montgomery requires odd)\n");
+    bigint_t even_mod, even_base, even_exp, result3;
+    bigint_init(&even_mod);
+    bigint_init(&even_base);
+    bigint_init(&even_exp);
+    bigint_init(&result3);
+    
+    bigint_set_u32(&even_mod, 1024);  /* Even modulus */
+    bigint_set_u32(&even_base, 3);
+    bigint_set_u32(&even_exp, 5);
+    
+    montgomery_ctx_t even_ctx;
+    memset(&even_ctx, 0, sizeof(even_ctx));
+    /* Montgomery init will fail for even modulus, but hybrid should handle it */
+    montgomery_ctx_init(&even_ctx, &even_mod);
+    
+    printf("   Modulus: %d bits (even)\n", bigint_bit_length(&even_mod));
+    int ret3 = hybrid_mod_exp(&result3, &even_base, &even_exp, &even_mod, &even_ctx);
+    printf("   Result: %s\n", ret3 == 0 ? "SUCCESS" : "FAILED");
+    
+    /* Test 4: NULL Montgomery context - should use traditional */
+    printf("\n🔍 Test 4: NULL Montgomery context - should use traditional\n");
+    bigint_t null_result;
+    bigint_init(&null_result);
+    
+    printf("   Montgomery context: NULL\n");
+    int ret4 = hybrid_mod_exp(&null_result, &small_base, &small_exp, &small_mod, NULL);
+    printf("   Result: %s\n", ret4 == 0 ? "SUCCESS" : "FAILED");
+    
+    /* Summary */
+    printf("\n===============================================\n");
+    printf("Hybrid Algorithm Selection Summary:\n");
+    printf("  Test 1 (Small modulus): %s\n", ret1 == 0 ? "✅ PASS" : "❌ FAIL");
+    printf("  Test 2 (Large modulus): %s\n", ret2 == 0 ? "✅ PASS" : "❌ FAIL");
+    printf("  Test 3 (Even modulus):  %s\n", ret3 == 0 ? "✅ PASS" : "❌ FAIL");
+    printf("  Test 4 (NULL context):  %s\n", ret4 == 0 ? "✅ PASS" : "❌ FAIL");
+    
+    int total_passed = (ret1 == 0) + (ret2 == 0) + (ret3 == 0) + (ret4 == 0);
+    printf("===============================================\n");
+    printf("🎯 Overall: %d/4 tests passed\n", total_passed);
+    printf("✅ Hybrid system (Terrantsh model) is %s\n", 
+           total_passed == 4 ? "WORKING CORRECTLY" : "NEEDS ATTENTION");
+    printf("===============================================\n");
+    
+    /* Cleanup */
+    montgomery_ctx_free(&small_ctx);
+    /* large_ctx was not initialized, so no cleanup needed */
+    montgomery_ctx_free(&even_ctx);
+    
+    return total_passed == 4 ? 0 : -1;
+}

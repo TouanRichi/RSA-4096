@@ -1,10 +1,17 @@
 /**
  * @file rsa_4096_core.c
- * @brief Complete RSA-4096 Core Operations with Montgomery REDC - BUGS FIXED ONLY
+ * @brief Complete RSA-4096 Core Operations with Hybrid Algorithm Selection - TERRANTSH MODEL
+ * 
+ * This implementation features a hybrid system that automatically chooses between:
+ * - Montgomery REDC for optimal performance with large modulus (when suitable)
+ * - Traditional modular exponentiation as fallback (following terrantsh/RSA4096 approach)
+ * 
+ * The hybrid system considers modulus size, buffer capacity, and runtime conditions
+ * to select the most appropriate algorithm, ensuring reliable RSA-4096 operation.
  * 
  * @author TouanRichi
  * @date 2025-07-29 13:14:49 UTC
- * @version FINAL_COMPLETE_FIXED_v8.4
+ * @version FINAL_COMPLETE_FIXED_v8.4 + HYBRID_TERRANTSH_v1.0
  */
 
 #include <stdio.h>
@@ -63,18 +70,22 @@ int rsa_4096_load_key(rsa_4096_key_t *key, const char *n_decimal, const char *e_
         ERROR_RETURN(-4, "Exponent cannot be zero");
     }
     
-    /* Verify modulus is odd (required for Montgomery) */
+    /* Check modulus parity for hybrid algorithm selection */
     if ((key->n.words[0] & 1) == 0) {
-        ERROR_RETURN(-5, "Even modulus not supported - Montgomery REDC requires odd modulus");
+        CHECKPOINT(LOG_INFO, "Even modulus detected - hybrid system will use traditional algorithm (Montgomery requires odd modulus)");
     }
     
-    /* Initialize Montgomery REDC context */
+    /* Initialize Montgomery REDC context for hybrid system */
     CHECKPOINT(LOG_INFO, "Initializing Montgomery REDC context for %d-bit modulus", 
               bigint_bit_length(&key->n));
     
     ret = montgomery_ctx_init(&key->mont_ctx, &key->n);
     if (ret != 0) {
-        ERROR_RETURN(ret, "Montgomery REDC initialization failed - no fallback available");
+        CHECKPOINT(LOG_INFO, "Montgomery REDC initialization failed (code %d) - hybrid system will use traditional algorithm fallback (Terrantsh model)", ret);
+        /* Continue without Montgomery - hybrid system will use traditional fallback */
+        key->mont_ctx.is_active = 0;
+    } else {
+        CHECKPOINT(LOG_INFO, "Montgomery REDC context initialized successfully - hybrid system ready");
     }
     
     CHECKPOINT(LOG_INFO, "RSA key loaded successfully: %d-bit modulus, %s key", 
@@ -171,14 +182,9 @@ int rsa_4096_encrypt(const rsa_4096_key_t *pub_key, const char *message_decimal,
     /* Perform encryption: c = m^e mod n */
     bigint_t encrypted;
     
-    /* Use Montgomery exponentiation if available */
-    if (pub_key->mont_ctx.is_active) {
-        CHECKPOINT(LOG_INFO, "Using Montgomery exponentiation");
-        ret = montgomery_exp(&encrypted, &message, &pub_key->exponent, &pub_key->mont_ctx);
-    } else {
-        CHECKPOINT(LOG_INFO, "Using standard modular exponentiation");
-        ret = bigint_mod_exp(&encrypted, &message, &pub_key->exponent, &pub_key->n);
-    }
+    /* Use hybrid algorithm selection - Terrantsh model with intelligent fallback */
+    CHECKPOINT(LOG_INFO, "Using hybrid algorithm selection for encryption");
+    ret = hybrid_mod_exp(&encrypted, &message, &pub_key->exponent, &pub_key->n, &pub_key->mont_ctx);
     
     if (ret != 0) {
         ERROR_RETURN(ret, "Encryption computation failed");
@@ -238,14 +244,9 @@ int rsa_4096_decrypt(const rsa_4096_key_t *priv_key, const char *encrypted_hex,
     /* Perform decryption: m = c^d mod n */
     bigint_t decrypted;
     
-    /* Use Montgomery exponentiation if available */
-    if (priv_key->mont_ctx.is_active) {
-        CHECKPOINT(LOG_INFO, "Using Montgomery exponentiation for decryption");
-        ret = montgomery_exp(&decrypted, &encrypted, &priv_key->exponent, &priv_key->mont_ctx);
-    } else {
-        CHECKPOINT(LOG_INFO, "Using standard modular exponentiation for decryption");
-        ret = bigint_mod_exp(&decrypted, &encrypted, &priv_key->exponent, &priv_key->n);
-    }
+    /* Use hybrid algorithm selection - Terrantsh model with intelligent fallback */
+    CHECKPOINT(LOG_INFO, "Using hybrid algorithm selection for decryption");
+    ret = hybrid_mod_exp(&decrypted, &encrypted, &priv_key->exponent, &priv_key->n, &priv_key->mont_ctx);
     
     if (ret != 0) {
         ERROR_RETURN(ret, "Decryption computation failed");
@@ -310,13 +311,10 @@ int rsa_4096_encrypt_binary(const rsa_4096_key_t *pub_key, const uint8_t *messag
         ERROR_RETURN(-4, "Message must be less than modulus");
     }
     
-    /* Perform encryption */
+    /* Use hybrid algorithm selection - Terrantsh model with intelligent fallback */
     bigint_t encrypted_bigint;
-    if (pub_key->mont_ctx.is_active) {
-        ret = montgomery_exp(&encrypted_bigint, &message_bigint, &pub_key->exponent, &pub_key->mont_ctx);
-    } else {
-        ret = bigint_mod_exp(&encrypted_bigint, &message_bigint, &pub_key->exponent, &pub_key->n);
-    }
+    CHECKPOINT(LOG_INFO, "Using hybrid algorithm selection for binary encryption");
+    ret = hybrid_mod_exp(&encrypted_bigint, &message_bigint, &pub_key->exponent, &pub_key->n, &pub_key->mont_ctx);
     
     if (ret != 0) {
         ERROR_RETURN(ret, "Binary encryption computation failed");
@@ -366,13 +364,10 @@ int rsa_4096_decrypt_binary(const rsa_4096_key_t *priv_key, const uint8_t *encry
         ERROR_RETURN(-5, "Encrypted message must be less than modulus");
     }
     
-    /* Perform decryption */
+    /* Use hybrid algorithm selection - Terrantsh model with intelligent fallback */
     bigint_t decrypted_bigint;
-    if (priv_key->mont_ctx.is_active) {
-        ret = montgomery_exp(&decrypted_bigint, &encrypted_bigint, &priv_key->exponent, &priv_key->mont_ctx);
-    } else {
-        ret = bigint_mod_exp(&decrypted_bigint, &encrypted_bigint, &priv_key->exponent, &priv_key->n);
-    }
+    CHECKPOINT(LOG_INFO, "Using hybrid algorithm selection for binary decryption");
+    ret = hybrid_mod_exp(&decrypted_bigint, &encrypted_bigint, &priv_key->exponent, &priv_key->n, &priv_key->mont_ctx);
     
     if (ret != 0) {
         ERROR_RETURN(ret, "Binary decryption computation failed");
