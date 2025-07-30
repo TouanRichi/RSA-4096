@@ -213,7 +213,10 @@ int extended_gcd_full(bigint_t *result, const bigint_t *a, const bigint_t *m) {
     printf("[EXT_GCD_FULL] Starting extended GCD algorithm\n");
     
     int iteration = 0;
-    int max_iterations = 3;  /* Very conservative limit for production use */
+    int max_iterations = 1000;  /* Reasonable limit for most cases - reduced from 8192 for performance */
+    int log_threshold_1 = 100;   /* Log when exceeding 100 iterations */
+    int log_threshold_2 = 500;   /* Log when exceeding 500 iterations */
+    int log_threshold_3 = 800;   /* Log when exceeding 800 iterations */
     
     while (!bigint_is_zero(&r) && iteration < max_iterations) {
         iteration++;
@@ -276,17 +279,32 @@ int extended_gcd_full(bigint_t *result, const bigint_t *a, const bigint_t *m) {
             fflush(stdout);
         }
         
-        /* Enhanced safety check with very early termination for production use */
+        /* Debug logging for performance monitoring */
+        if (iteration == log_threshold_1) {
+            printf("[EXT_GCD_FULL] ⚠️  Performance Warning: Exceeded %d iterations for GCD computation\n", log_threshold_1);
+            printf("[EXT_GCD_FULL] This may indicate large modulus or challenging number properties\n");
+            fflush(stdout);
+        }
+        if (iteration == log_threshold_2) {
+            printf("[EXT_GCD_FULL] ⚠️  Performance Warning: Exceeded %d iterations - continuing with extended computation\n", log_threshold_2);
+            fflush(stdout);
+        }
+        if (iteration == log_threshold_3) {
+            printf("[EXT_GCD_FULL] ⚠️  Performance Alert: Exceeded %d iterations - approaching timeout\n", log_threshold_3);
+            fflush(stdout);
+        }
+        
+        /* Enhanced safety check with reasonable limit */
         if (iteration >= max_iterations) {
             printf("[EXT_GCD_FULL] Reached maximum iterations (%d)\n", max_iterations);
-            printf("[EXT_GCD_FULL] Terminating early for performance reasons\n");
-            ERROR_RETURN(-4, "Extended GCD exceeded practical iterations - numbers too large for this implementation");
+            printf("[EXT_GCD_FULL] This computation is too expensive - failing gracefully\n");
+            ERROR_RETURN(-4, "Extended GCD exceeded maximum iterations (%d) - computation too expensive", max_iterations);
         }
     }
     
     /* Check why the loop ended */
     if (iteration >= max_iterations) {
-        printf("[EXT_GCD_FULL] Loop terminated due to iteration limit\n");
+        printf("[EXT_GCD_FULL] Loop terminated due to iteration limit (%d)\n", max_iterations);
         ERROR_RETURN(-4, "Extended GCD exceeded maximum iterations");
     }
     

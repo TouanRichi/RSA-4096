@@ -64,6 +64,8 @@ run_basic_tests: rsa_4096
 	./rsa_4096 test
 	@echo "🧪 Running binary operation tests..."
 	./rsa_4096 binary
+	@echo "🧪 Running comprehensive round-trip tests..."
+	./rsa_4096 roundtrip
 	@echo "✅ All basic tests completed"
 
 run_performance_tests: rsa_4096

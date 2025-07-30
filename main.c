@@ -15,7 +15,7 @@
 int main(int argc, char **argv) {
     printf("[main:%d] Starting RSA-4096 application\n", __LINE__);
     if (argc < 2) {
-        printf("Usage: %s [verify|test|benchmark|binary|manual|real4096|hybrid]\n", argv[0]);
+        printf("Usage: %s [verify|test|benchmark|binary|manual|real4096|hybrid|roundtrip]\n", argv[0]);
         return 1;
     }
     if (strcmp(argv[1], "verify") == 0) {
@@ -45,6 +45,10 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "hybrid") == 0) {
         printf("[main:%d] Running hybrid algorithm selection testing\n", __LINE__);
         return test_hybrid_algorithm_selection();
+    }
+    if (strcmp(argv[1], "roundtrip") == 0) {
+        printf("[main:%d] Running comprehensive round-trip testing\n", __LINE__);
+        return test_comprehensive_round_trip();
     }
     printf("Unknown command: %s\n", argv[1]);
     return 1;
