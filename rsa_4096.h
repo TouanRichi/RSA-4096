@@ -53,6 +53,31 @@
         return (code); \
     } while(0)
 
+/* TODO: Enhanced debugging and assertion macros for round-trip validation */
+#define ASSERT_ROUND_TRIP(condition, fmt, ...) \
+    do { \
+        if (!(condition)) { \
+            printf("[ASSERT_FAIL:%s:%d] ROUND-TRIP ASSERTION FAILED: " fmt "\n", __func__, __LINE__, ##__VA_ARGS__); \
+            fflush(stdout); \
+        } \
+    } while(0)
+
+#define VALIDATE_OVERFLOW(bigint_ptr, operation) \
+    do { \
+        if ((bigint_ptr)->used > BIGINT_4096_WORDS - 10) { \
+            CHECKPOINT(LOG_ERROR, "POTENTIAL OVERFLOW detected in %s: used=%d, max=%d", operation, (bigint_ptr)->used, BIGINT_4096_WORDS); \
+        } \
+    } while(0)
+
+#define LOG_CONVERSION(step, input, output) \
+    do { \
+        if (LOG_LEVEL <= LOG_DEBUG) { \
+            printf("[CONVERSION:%s] %s\n", step, #input " -> " #output); \
+            debug_print_bigint("input", input); \
+            debug_print_bigint("output", output); \
+        } \
+    } while(0)
+
 /* ===================== DATA STRUCTURES ===================== */
 
 /**
@@ -202,6 +227,13 @@ int test_real_rsa_4096(void);
 /* Test hybrid algorithm selection */
 int test_hybrid_algorithm_selection(void);
 
+/* TODO: Enhanced round-trip testing functions */
+int test_round_trip_comprehensive(void);
+int test_boundary_conditions(void);
+int test_montgomery_conversions_detailed(void);
+int test_edge_cases_zero_one_boundary(void);
+int validate_all_algorithms_round_trip(void);
+
 /* ===================== HELPER FUNCTIONS - FIXED ===================== */
 
 int extended_gcd_full(bigint_t *result, const bigint_t *a, const bigint_t *m);
@@ -210,5 +242,13 @@ int extended_gcd_full(bigint_t *result, const bigint_t *a, const bigint_t *m);
 
 void bigint_normalize(bigint_t *a);
 int bigint_ensure_capacity(bigint_t *a, int min_words);
+
+/* ===================== ROUND-TRIP VALIDATION FUNCTIONS ===================== */
+
+/* TODO: Add comprehensive round-trip validation helpers */
+int validate_montgomery_round_trip(const bigint_t *value, const montgomery_ctx_t *ctx);
+int validate_modexp_round_trip(const bigint_t *message, const bigint_t *pub_exp, 
+                              const bigint_t *priv_exp, const bigint_t *modulus);
+int validate_conversion_round_trip(const bigint_t *original, const char *format);
 
 #endif /* RSA_4096_H */

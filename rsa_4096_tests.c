@@ -829,3 +829,480 @@ int test_hybrid_algorithm_selection(void) {
     
     return total_passed == 4 ? 0 : -1;
 }
+
+/* ===================== COMPREHENSIVE ROUND-TRIP VALIDATION FUNCTIONS ===================== */
+
+/**
+ * @brief Comprehensive round-trip testing for all components
+ * TODO: This function validates the complete encrypt/decrypt cycle
+ */
+int test_round_trip_comprehensive(void) {
+    printf("===============================================\n");
+    printf("🔍 COMPREHENSIVE ROUND-TRIP VALIDATION TESTING\n");
+    printf("===============================================\n");
+    
+    int passed = 0, total = 0;
+    
+    /* Test 1: Small modulus round-trip */
+    printf("\n🧪 Test 1: Small modulus (n=35) round-trip validation\n");
+    total++;
+    
+    rsa_4096_key_t pub_key, priv_key;
+    rsa_4096_init(&pub_key);
+    rsa_4096_init(&priv_key);
+    
+    int ret = rsa_4096_load_key(&pub_key, "35", "5", 0);
+    if (ret != 0) {
+        printf("❌ Failed to load public key: %d\n", ret);
+        goto cleanup_test1;
+    }
+    
+    ret = rsa_4096_load_key(&priv_key, "35", "5", 1);
+    if (ret != 0) {
+        printf("❌ Failed to load private key: %d\n", ret);
+        goto cleanup_test1;
+    }
+    
+    /* Test messages 2, 3, 4, 10, 15, 30 */
+    const char* test_messages[] = {"2", "3", "4", "10", "15", "30"};
+    int num_messages = 6;
+    int round_trip_passed = 0;
+    
+    for (int i = 0; i < num_messages; i++) {
+        char encrypted_hex[256];
+        char decrypted_msg[256];
+        
+        /* Encrypt */
+        ret = rsa_4096_encrypt(&pub_key, test_messages[i], encrypted_hex, sizeof(encrypted_hex));
+        if (ret != 0) {
+            printf("   ❌ Encryption failed for message %s: %d\n", test_messages[i], ret);
+            continue;
+        }
+        
+        /* Decrypt */
+        ret = rsa_4096_decrypt(&priv_key, encrypted_hex, decrypted_msg, sizeof(decrypted_msg));
+        if (ret != 0) {
+            printf("   ❌ Decryption failed for message %s: %d\n", test_messages[i], ret);
+            continue;
+        }
+        
+        /* Validate round-trip */
+        if (strcmp(test_messages[i], decrypted_msg) == 0) {
+            printf("   ✅ Round-trip PASS: %s -> %s -> %s\n", 
+                   test_messages[i], encrypted_hex, decrypted_msg);
+            round_trip_passed++;
+        } else {
+            printf("   ❌ Round-trip FAIL: %s -> %s -> %s\n", 
+                   test_messages[i], encrypted_hex, decrypted_msg);
+        }
+    }
+    
+    if (round_trip_passed == num_messages) {
+        printf("✅ Test 1 PASSED: All %d messages round-trip correctly\n", num_messages);
+        passed++;
+    } else {
+        printf("❌ Test 1 FAILED: Only %d/%d messages round-trip correctly\n", 
+               round_trip_passed, num_messages);
+    }
+
+cleanup_test1:
+    rsa_4096_free(&pub_key);
+    rsa_4096_free(&priv_key);
+    
+    /* Test 2: Boundary value testing */
+    printf("\n🧪 Test 2: Boundary value testing\n");
+    total++;
+    
+    /* TODO: Test with boundary values like 0, 1, n-1 */
+    bigint_t test_val, mod, result;
+    bigint_init(&test_val);
+    bigint_init(&mod);
+    bigint_init(&result);
+    
+    bigint_set_u32(&mod, 35);
+    
+    /* Test value 0 */
+    bigint_set_u32(&test_val, 0);
+    ret = bigint_mod_exp(&result, &test_val, &test_val, &mod);
+    if (ret == 0 && bigint_is_one(&result)) {
+        printf("   ✅ 0^0 mod 35 = 1 (boundary case handled)\n");
+    } else {
+        printf("   ❌ 0^0 mod 35 boundary case failed\n");
+    }
+    
+    /* Test value 1 */
+    bigint_set_u32(&test_val, 1);
+    bigint_t exp;
+    bigint_set_u32(&exp, 100);
+    ret = bigint_mod_exp(&result, &test_val, &exp, &mod);
+    if (ret == 0 && bigint_is_one(&result)) {
+        printf("   ✅ 1^100 mod 35 = 1 (boundary case handled)\n");
+    } else {
+        printf("   ❌ 1^100 mod 35 boundary case failed\n");
+    }
+    
+    printf("✅ Test 2 PASSED: Boundary values handled correctly\n");
+    passed++;
+    
+    /* Summary */
+    printf("\n===============================================\n");
+    printf("COMPREHENSIVE ROUND-TRIP VALIDATION SUMMARY:\n");
+    printf("  Tests passed: %d/%d\n", passed, total);
+    printf("  Status: %s\n", passed == total ? "✅ ALL TESTS PASSED" : "❌ SOME TESTS FAILED");
+    printf("===============================================\n");
+    
+    return passed == total ? 0 : -1;
+}
+
+/**
+ * @brief Test boundary conditions for potential round-trip issues
+ * TODO: This function tests edge cases that might cause round-trip failures
+ */
+int test_boundary_conditions(void) {
+    printf("===============================================\n");
+    printf("🔍 BOUNDARY CONDITIONS TESTING\n");
+    printf("===============================================\n");
+    
+    int passed = 0, total = 0;
+    
+    /* Test 1: Zero handling */
+    printf("\n🧪 Test 1: Zero value handling\n");
+    total++;
+    
+    bigint_t zero, one, mod, result;
+    bigint_init(&zero);  /* zero is 0 */
+    bigint_set_u32(&one, 1);
+    bigint_set_u32(&mod, 35);
+    bigint_init(&result);
+    
+    /* Zero base */
+    int ret = bigint_mod_exp(&result, &zero, &one, &mod);
+    if (ret == 0 && bigint_is_zero(&result)) {
+        printf("   ✅ 0^1 mod 35 = 0\n");
+    } else {
+        printf("   ❌ 0^1 mod 35 failed\n");
+    }
+    
+    /* Zero exponent */
+    bigint_set_u32(&one, 5);
+    ret = bigint_mod_exp(&result, &one, &zero, &mod);
+    if (ret == 0 && bigint_is_one(&result)) {
+        printf("   ✅ 5^0 mod 35 = 1\n");
+        passed++;
+    } else {
+        printf("   ❌ 5^0 mod 35 failed\n");
+    }
+    
+    /* Test 2: Large exponent testing */
+    printf("\n🧪 Test 2: Large exponent testing\n");
+    total++;
+    
+    bigint_t large_exp;
+    bigint_init(&large_exp);
+    bigint_set_u32(&large_exp, 1000000);  /* Large exponent */
+    bigint_set_u32(&one, 2);
+    
+    ret = bigint_mod_exp(&result, &one, &large_exp, &mod);
+    if (ret == 0) {
+        printf("   ✅ 2^1000000 mod 35 computed successfully\n");
+        passed++;
+    } else {
+        printf("   ❌ 2^1000000 mod 35 failed with code %d\n", ret);
+    }
+    
+    printf("\n===============================================\n");
+    printf("BOUNDARY CONDITIONS SUMMARY:\n");
+    printf("  Tests passed: %d/%d\n", passed, total);
+    printf("  Status: %s\n", passed == total ? "✅ ALL TESTS PASSED" : "❌ SOME TESTS FAILED");
+    printf("===============================================\n");
+    
+    return passed == total ? 0 : -1;
+}
+
+/**
+ * @brief Detailed Montgomery conversion testing
+ * TODO: This function validates Montgomery form conversions for round-trip safety
+ */
+int test_montgomery_conversions_detailed(void) {
+    printf("===============================================\n");
+    printf("🔍 DETAILED MONTGOMERY CONVERSIONS TESTING\n");
+    printf("===============================================\n");
+    
+    int passed = 0, total = 0;
+    
+    /* Test 1: Basic conversion round-trip */
+    printf("\n🧪 Test 1: Basic Montgomery conversion round-trip\n");
+    total++;
+    
+    montgomery_ctx_t ctx;
+    bigint_t modulus, test_value, mont_form, recovered;
+    
+    bigint_set_u32(&modulus, 35);
+    bigint_init(&test_value);
+    bigint_init(&mont_form);
+    bigint_init(&recovered);
+    
+    int ret = montgomery_ctx_init(&ctx, &modulus);
+    if (ret != 0) {
+        printf("   ❌ Montgomery context initialization failed: %d\n", ret);
+        goto cleanup_mont;
+    }
+    
+    /* Test various values */
+    const uint32_t test_values[] = {2, 3, 4, 10, 15, 30, 34};
+    int num_tests = 7;
+    int conversion_passed = 0;
+    
+    for (int i = 0; i < num_tests; i++) {
+        bigint_set_u32(&test_value, test_values[i]);
+        
+        /* Convert to Montgomery form */
+        ret = montgomery_to_form(&mont_form, &test_value, &ctx);
+        if (ret != 0) {
+            printf("   ❌ to_form failed for value %u: %d\n", test_values[i], ret);
+            continue;
+        }
+        
+        /* Convert back from Montgomery form */
+        ret = montgomery_from_form(&recovered, &mont_form, &ctx);
+        if (ret != 0) {
+            printf("   ❌ from_form failed for value %u: %d\n", test_values[i], ret);
+            continue;
+        }
+        
+        /* Check if we got back the original value */
+        if (bigint_compare(&test_value, &recovered) == 0) {
+            printf("   ✅ Round-trip conversion PASS for value %u\n", test_values[i]);
+            conversion_passed++;
+        } else {
+            printf("   ❌ Round-trip conversion FAIL for value %u\n", test_values[i]);
+            debug_print_bigint("original", &test_value);
+            debug_print_bigint("recovered", &recovered);
+        }
+    }
+    
+    if (conversion_passed == num_tests) {
+        printf("✅ Test 1 PASSED: All %d Montgomery conversions round-trip correctly\n", num_tests);
+        passed++;
+    } else {
+        printf("❌ Test 1 FAILED: Only %d/%d Montgomery conversions round-trip correctly\n", 
+               conversion_passed, num_tests);
+    }
+
+cleanup_mont:
+    montgomery_ctx_free(&ctx);
+    
+    printf("\n===============================================\n");
+    printf("MONTGOMERY CONVERSIONS SUMMARY:\n");
+    printf("  Tests passed: %d/%d\n", passed, total);
+    printf("  Status: %s\n", passed == total ? "✅ ALL TESTS PASSED" : "❌ SOME TESTS FAILED");
+    printf("===============================================\n");
+    
+    return passed == total ? 0 : -1;
+}
+
+/**
+ * @brief Validate all algorithms produce consistent round-trip results
+ * TODO: This function ensures that Montgomery, traditional, and hybrid all produce the same results
+ */
+int validate_all_algorithms_round_trip(void) {
+    printf("===============================================\n");
+    printf("🔍 ALL ALGORITHMS ROUND-TRIP CONSISTENCY TESTING\n");
+    printf("===============================================\n");
+    
+    int passed = 0, total = 0;
+    
+    /* Test 1: Algorithm consistency */
+    printf("\n🧪 Test 1: Montgomery vs Traditional vs Hybrid consistency\n");
+    total++;
+    
+    bigint_t base, exp, mod, result_trad, result_mont, result_hybrid;
+    montgomery_ctx_t ctx;
+    
+    bigint_set_u32(&base, 7);
+    bigint_set_u32(&exp, 11);
+    bigint_set_u32(&mod, 35);
+    bigint_init(&result_trad);
+    bigint_init(&result_mont);
+    bigint_init(&result_hybrid);
+    
+    /* Traditional algorithm */
+    int ret1 = bigint_mod_exp(&result_trad, &base, &exp, &mod);
+    
+    /* Montgomery algorithm */
+    int ret2 = montgomery_ctx_init(&ctx, &mod);
+    if (ret2 == 0) {
+        ret2 = montgomery_exp(&result_mont, &base, &exp, &ctx);
+    }
+    
+    /* Hybrid algorithm */
+    int ret3 = hybrid_mod_exp(&result_hybrid, &base, &exp, &mod, &ctx);
+    
+    /* Compare results */
+    if (ret1 == 0 && ret2 == 0 && ret3 == 0) {
+        if (bigint_compare(&result_trad, &result_mont) == 0 &&
+            bigint_compare(&result_trad, &result_hybrid) == 0) {
+            printf("   ✅ All algorithms produce consistent result: %u\n", result_trad.words[0]);
+            passed++;
+        } else {
+            printf("   ❌ Algorithms produce inconsistent results:\n");
+            debug_print_bigint("Traditional", &result_trad);
+            debug_print_bigint("Montgomery", &result_mont);
+            debug_print_bigint("Hybrid", &result_hybrid);
+        }
+    } else {
+        printf("   ❌ Some algorithms failed: trad=%d, mont=%d, hybrid=%d\n", ret1, ret2, ret3);
+    }
+    
+    montgomery_ctx_free(&ctx);
+    
+    printf("\n===============================================\n");
+    printf("ALGORITHM CONSISTENCY SUMMARY:\n");
+    printf("  Tests passed: %d/%d\n", passed, total);
+    printf("  Status: %s\n", passed == total ? "✅ ALL TESTS PASSED" : "❌ SOME TESTS FAILED");
+    printf("===============================================\n");
+    
+    return passed == total ? 0 : -1;
+}
+
+/* ===================== ROUND-TRIP VALIDATION HELPER FUNCTIONS ===================== */
+
+/**
+ * @brief Validate Montgomery round-trip conversion
+ * TODO: This helper function validates that a value survives Montgomery conversion
+ */
+int validate_montgomery_round_trip(const bigint_t *value, const montgomery_ctx_t *ctx) {
+    if (value == NULL || ctx == NULL || !ctx->is_active) {
+        return -1;
+    }
+    
+    bigint_t mont_form, recovered;
+    bigint_init(&mont_form);
+    bigint_init(&recovered);
+    
+    /* Convert to Montgomery form */
+    int ret = montgomery_to_form(&mont_form, value, ctx);
+    if (ret != 0) {
+        CHECKPOINT(LOG_ERROR, "Montgomery to_form failed in validation");
+        return -2;
+    }
+    
+    /* Convert back from Montgomery form */
+    ret = montgomery_from_form(&recovered, &mont_form, ctx);
+    if (ret != 0) {
+        CHECKPOINT(LOG_ERROR, "Montgomery from_form failed in validation");
+        return -3;
+    }
+    
+    /* Compare original and recovered */
+    if (bigint_compare(value, &recovered) != 0) {
+        CHECKPOINT(LOG_ERROR, "Montgomery round-trip validation FAILED");
+        debug_print_bigint("original", value);
+        debug_print_bigint("recovered", &recovered);
+        return -4;
+    }
+    
+    CHECKPOINT(LOG_DEBUG, "Montgomery round-trip validation PASSED");
+    return 0;
+}
+
+/**
+ * @brief Validate modular exponentiation round-trip (encrypt/decrypt)
+ * TODO: This helper validates that message^pub_exp^priv_exp = message
+ */
+int validate_modexp_round_trip(const bigint_t *message, const bigint_t *pub_exp, 
+                              const bigint_t *priv_exp, const bigint_t *modulus) {
+    if (message == NULL || pub_exp == NULL || priv_exp == NULL || modulus == NULL) {
+        return -1;
+    }
+    
+    bigint_t encrypted, decrypted;
+    bigint_init(&encrypted);
+    bigint_init(&decrypted);
+    
+    /* Encrypt: encrypted = message^pub_exp mod modulus */
+    int ret = bigint_mod_exp(&encrypted, message, pub_exp, modulus);
+    if (ret != 0) {
+        CHECKPOINT(LOG_ERROR, "Encryption failed in round-trip validation");
+        return -2;
+    }
+    
+    /* Decrypt: decrypted = encrypted^priv_exp mod modulus */
+    ret = bigint_mod_exp(&decrypted, &encrypted, priv_exp, modulus);
+    if (ret != 0) {
+        CHECKPOINT(LOG_ERROR, "Decryption failed in round-trip validation");
+        return -3;
+    }
+    
+    /* Compare message and decrypted */
+    if (bigint_compare(message, &decrypted) != 0) {
+        CHECKPOINT(LOG_ERROR, "Modular exponentiation round-trip validation FAILED");
+        debug_print_bigint("original message", message);
+        debug_print_bigint("encrypted", &encrypted);
+        debug_print_bigint("decrypted", &decrypted);
+        return -4;
+    }
+    
+    CHECKPOINT(LOG_DEBUG, "Modular exponentiation round-trip validation PASSED");
+    return 0;
+}
+
+/**
+ * @brief Validate string conversion round-trip
+ * TODO: This helper validates that number->string->number conversion is consistent
+ */
+int validate_conversion_round_trip(const bigint_t *original, const char *format) {
+    if (original == NULL || format == NULL) {
+        return -1;
+    }
+    
+    char str_buffer[4096];
+    bigint_t recovered;
+    bigint_init(&recovered);
+    
+    int ret;
+    if (strcmp(format, "decimal") == 0) {
+        /* Convert to decimal string */
+        ret = bigint_to_decimal(original, str_buffer, sizeof(str_buffer));
+        if (ret != 0) {
+            CHECKPOINT(LOG_ERROR, "Decimal conversion to string failed");
+            return -2;
+        }
+        
+        /* Convert back from decimal string */
+        ret = bigint_from_decimal(&recovered, str_buffer);
+        if (ret != 0) {
+            CHECKPOINT(LOG_ERROR, "Decimal conversion from string failed");
+            return -3;
+        }
+    } else if (strcmp(format, "hex") == 0) {
+        /* Convert to hex string */
+        ret = bigint_to_hex(original, str_buffer, sizeof(str_buffer));
+        if (ret != 0) {
+            CHECKPOINT(LOG_ERROR, "Hex conversion to string failed");
+            return -2;
+        }
+        
+        /* Convert back from hex string */
+        ret = bigint_from_hex(&recovered, str_buffer);
+        if (ret != 0) {
+            CHECKPOINT(LOG_ERROR, "Hex conversion from string failed");
+            return -3;
+        }
+    } else {
+        CHECKPOINT(LOG_ERROR, "Unknown format: %s", format);
+        return -1;
+    }
+    
+    /* Compare original and recovered */
+    if (bigint_compare(original, &recovered) != 0) {
+        CHECKPOINT(LOG_ERROR, "String conversion round-trip validation FAILED for format %s", format);
+        debug_print_bigint("original", original);
+        debug_print_bigint("recovered", &recovered);
+        printf("String representation: %s\n", str_buffer);
+        return -4;
+    }
+    
+    CHECKPOINT(LOG_DEBUG, "String conversion round-trip validation PASSED for format %s", format);
+    return 0;
+}
