@@ -9,7 +9,7 @@ CFLAGS=-Wall -Wextra -O3 -DNDEBUG -DLOG_LEVEL=2 -std=c99 -fstack-protector-stron
 LDFLAGS=-lm
 
 # FIXED: Complete object list with proper dependencies
-OBJS=rsa_4096_bigint.o rsa_4096_arithmetic.o rsa_4096_montgomery.o rsa_4096_core.o rsa_4096_tests.o main.o
+OBJS=rsa_4096_bigint.o rsa_4096_arithmetic.o rsa_4096_montgomery.o rsa_4096_core.o rsa_4096_tests.o enhanced_tests.o main.o
 
 # FIXED: Default target
 all: rsa_4096
@@ -50,10 +50,14 @@ rsa_4096_tests.o: rsa_4096_tests.c rsa_4096.h
 	@echo "🔧 Compiling rsa_4096_tests.c..."
 	$(CC) $(CFLAGS) -c rsa_4096_tests.c -o rsa_4096_tests.o
 
+enhanced_tests.o: enhanced_tests.c rsa_4096.h
+	@echo "🔧 Compiling enhanced_tests.c..."
+	$(CC) $(CFLAGS) -c enhanced_tests.c -o enhanced_tests.o
+
 # FIXED: Test executable with enhanced testing
-test_rsa_4096_real: rsa_4096_bigint.o rsa_4096_arithmetic.o rsa_4096_montgomery.o rsa_4096_core.o rsa_4096_tests.o test_rsa_4096_real.c
+test_rsa_4096_real: rsa_4096_bigint.o rsa_4096_arithmetic.o rsa_4096_montgomery.o rsa_4096_core.o rsa_4096_tests.o enhanced_tests.o test_rsa_4096_real.c
 	@echo "🔧 Building test_rsa_4096_real..."
-	$(CC) $(CFLAGS) -o test_rsa_4096_real rsa_4096_bigint.o rsa_4096_arithmetic.o rsa_4096_montgomery.o rsa_4096_core.o rsa_4096_tests.o test_rsa_4096_real.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o test_rsa_4096_real rsa_4096_bigint.o rsa_4096_arithmetic.o rsa_4096_montgomery.o rsa_4096_core.o rsa_4096_tests.o enhanced_tests.o test_rsa_4096_real.c $(LDFLAGS)
 	@echo "✅ Test executable created successfully"
 
 # FIXED: Enhanced testing targets

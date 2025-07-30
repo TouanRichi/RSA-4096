@@ -57,10 +57,17 @@ int bigint_is_one(const bigint_t *a) {
     return (a->used == 1 && a->words[0] == 1);
 }
 
-/* ===================== NORMALIZATION FUNCTIONS ===================== */
+/* ===================== NORMALIZATION FUNCTIONS - ENHANCED ===================== */
 
 void bigint_normalize(bigint_t *a) {
     if (a == NULL) return;
+    
+    /* TODO: Add validation for word array bounds */
+    if (a->used > BIGINT_4096_WORDS) {
+        CHECKPOINT(LOG_ERROR, "CRITICAL: bigint_normalize detected overflow - used=%d, max=%d", 
+                  a->used, BIGINT_4096_WORDS);
+        a->used = BIGINT_4096_WORDS;
+    }
     
     /* Remove leading zeros */
     while (a->used > 0 && a->words[a->used - 1] == 0) {
@@ -72,16 +79,33 @@ void bigint_normalize(bigint_t *a) {
         a->used = 1;
         a->words[0] = 0;
     }
+    
+    /* TODO: Add sign validation */
+    if (a->sign != 0 && a->sign != 1) {
+        CHECKPOINT(LOG_ERROR, "WARNING: Invalid sign value %d in bigint_normalize", a->sign);
+        a->sign = 0;  /* Default to positive */
+    }
 }
 
 int bigint_ensure_capacity(bigint_t *a, int min_words) {
-    if (a == NULL) return -1;
+    /* TODO: Critical input validation for round-trip safety */
+    if (a == NULL) {
+        CHECKPOINT(LOG_ERROR, "NULL pointer in bigint_ensure_capacity");
+        return -1;
+    }
     
+    /* FIXME: Potential overflow protection */
     if (min_words > BIGINT_4096_WORDS) {
+        CHECKPOINT(LOG_ERROR, "Capacity overflow: requested %d, max %d", min_words, BIGINT_4096_WORDS);
         return -2; /* Overflow */
     }
     
-    /* Zero out any new words */
+    if (min_words < 0) {
+        CHECKPOINT(LOG_ERROR, "Invalid negative capacity: %d", min_words);
+        return -3;
+    }
+    
+    /* Zero out any new words - TODO: Critical for preventing uninitialized data */
     for (int i = a->used; i < min_words; i++) {
         a->words[i] = 0;
     }
@@ -90,14 +114,30 @@ int bigint_ensure_capacity(bigint_t *a, int min_words) {
         a->used = min_words;
     }
     
+    /* TODO: Validate final state */
+    if (a->used > BIGINT_4096_WORDS) {
+        CHECKPOINT(LOG_ERROR, "Post-capacity check overflow detected");
+        a->used = BIGINT_4096_WORDS;
+        return -4;
+    }
+    
     return 0;
 }
 
-/* ===================== STRING/BINARY CONVERSIONS - BUGS FIXED ===================== */
+/* ===================== STRING/BINARY CONVERSIONS - ENHANCED WITH ROUND-TRIP VALIDATION ===================== */
 
 int bigint_from_decimal(bigint_t *a, const char *decimal) {
+    /* TODO: Critical input validation */
+    if (a == NULL) {
+        CHECKPOINT(LOG_ERROR, "NULL bigint in bigint_from_decimal");
+        return -1;
+    }
+    
     bigint_init(a);
-    if (!decimal || !*decimal) return 0;
+    if (!decimal || !*decimal) {
+        CHECKPOINT(LOG_INFO, "Empty decimal string, initializing to zero");
+        return 0;
+    }
     
     size_t len = strlen(decimal);
     bigint_t ten;
@@ -279,7 +319,11 @@ int bigint_to_binary(const bigint_t *a, uint8_t *data, size_t data_size, size_t 
 /* ===================== BITWISE/BINARY OPERATIONS - CRITICAL FIXES ===================== */
 
 int bigint_shift_left(bigint_t *r, const bigint_t *a, int bits) {
-    if (!r || !a) return -1;
+    /* TODO: Critical input validation for round-trip safety */
+    if (!r || !a) {
+        CHECKPOINT(LOG_ERROR, "NULL pointer in bigint_shift_left");
+        return -1;
+    }
     
     bigint_init(r);
     if (bits == 0) {
@@ -287,17 +331,31 @@ int bigint_shift_left(bigint_t *r, const bigint_t *a, int bits) {
         return 0;
     }
     
-    if (bits < 0) return -2;
+    /* TODO: Validate shift amount */
+    if (bits < 0) {
+        CHECKPOINT(LOG_ERROR, "Negative shift amount: %d", bits);
+        return -2;
+    }
+    
+    /* FIXME: Potential overflow with very large shift amounts */
+    if (bits > 32 * BIGINT_4096_WORDS) {
+        CHECKPOINT(LOG_ERROR, "Shift amount too large: %d", bits);
+        return -2;
+    }
     
     int word_shift = bits / 32;
     int bit_shift = bits % 32;
     
-    /* Check for overflow */
+    /* TODO: Enhanced overflow protection */
     if (a->used + word_shift + (bit_shift ? 1 : 0) > BIGINT_4096_WORDS) {
+        CHECKPOINT(LOG_ERROR, "Left shift would overflow: used=%d, word_shift=%d, bit_shift=%d", 
+                  a->used, word_shift, bit_shift);
         return -3; /* Overflow */
     }
     
-    /* Perform the shift */
+    VALIDATE_OVERFLOW(a, "bigint_shift_left input");
+    
+    /* Perform the shift with bounds checking */
     for (int i = a->used - 1; i >= 0; i--) {
         uint64_t val = (uint64_t)a->words[i];
         
@@ -318,15 +376,21 @@ int bigint_shift_left(bigint_t *r, const bigint_t *a, int bits) {
     
     r->used = a->used + word_shift + (bit_shift ? 1 : 0);
     if (r->used > BIGINT_4096_WORDS) {
+        CHECKPOINT(LOG_ERROR, "Overflow in shift result, clamping to max");
         r->used = BIGINT_4096_WORDS;
     }
     
     bigint_normalize(r);
+    VALIDATE_OVERFLOW(r, "bigint_shift_left result");
     return 0;
 }
 
 int bigint_shift_right(bigint_t *r, const bigint_t *a, int bits) {
-    if (!r || !a) return -1;
+    /* TODO: Critical input validation for round-trip safety */
+    if (!r || !a) {
+        CHECKPOINT(LOG_ERROR, "NULL pointer in bigint_shift_right");
+        return -1;
+    }
     
     bigint_init(r);
     if (bits == 0) {
@@ -334,18 +398,33 @@ int bigint_shift_right(bigint_t *r, const bigint_t *a, int bits) {
         return 0;
     }
     
-    if (bits < 0) return -2;
+    /* TODO: Validate shift amount */
+    if (bits < 0) {
+        CHECKPOINT(LOG_ERROR, "Negative shift amount: %d", bits);
+        return -2;
+    }
     
-    int word_shift = bits / 32;
-    int bit_shift = bits % 32;
-    
-    /* If shifting more than available, result is zero */
-    if (word_shift >= a->used) {
+    /* FIXME: Handle very large shift amounts gracefully */
+    if (bits >= 32 * a->used) {
+        /* Shifting by more than the number of bits results in zero */
+        CHECKPOINT(LOG_INFO, "Right shift amount %d >= bit length, result is zero", bits);
         bigint_init(r);
         return 0;
     }
     
-    /* Perform the shift */
+    int word_shift = bits / 32;
+    int bit_shift = bits % 32;
+    
+    /* TODO: Enhanced bounds checking for right shift */
+    if (word_shift >= a->used) {
+        CHECKPOINT(LOG_INFO, "Word shift %d >= used words %d, result is zero", word_shift, a->used);
+        bigint_init(r);
+        return 0;
+    }
+    
+    VALIDATE_OVERFLOW(a, "bigint_shift_right input");
+    
+    /* Perform the shift with bounds checking */
     for (int i = word_shift; i < a->used; i++) {
         uint64_t val = (uint64_t)a->words[i];
         
@@ -355,7 +434,7 @@ int bigint_shift_right(bigint_t *r, const bigint_t *a, int bits) {
             r->words[dest_idx] = (uint32_t)(val >> bit_shift);
         }
         
-        /* CRITICAL FIX: Add proper bounds check for next word access */
+        /* TODO: CRITICAL FIX - Add proper bounds check for next word access */
         if (bit_shift > 0 && i + 1 < a->used && i + 1 < BIGINT_4096_WORDS) {
             uint64_t next_val = (uint64_t)a->words[i + 1];
             if (dest_idx < BIGINT_4096_WORDS) {
@@ -365,7 +444,14 @@ int bigint_shift_right(bigint_t *r, const bigint_t *a, int bits) {
     }
     
     r->used = a->used - word_shift;
+    /* TODO: Validate result after shift */
+    if (r->used < 0) {
+        CHECKPOINT(LOG_ERROR, "Invalid used count after right shift: %d", r->used);
+        r->used = 0;
+    }
+    
     bigint_normalize(r);
+    VALIDATE_OVERFLOW(r, "bigint_shift_right result");
     return 0;
 }
 
@@ -394,18 +480,28 @@ int bigint_bit_length(const bigint_t *a) {
     return word_idx * 32 + bit_pos + 1;
 }
 
-/* ===================== ADDITION/SUBTRACTION/MULTIPLICATION ===================== */
+/* ===================== ADDITION/SUBTRACTION/MULTIPLICATION - ENHANCED ===================== */
 
 int bigint_add(bigint_t *r, const bigint_t *a, const bigint_t *b) {
-    if (!r || !a || !b) return -1;
+    /* TODO: Critical input validation for round-trip safety */
+    if (!r || !a || !b) {
+        CHECKPOINT(LOG_ERROR, "NULL pointer in bigint_add");
+        return -1;
+    }
+    
+    /* TODO: Input validation */
+    VALIDATE_OVERFLOW(a, "bigint_add input a");
+    VALIDATE_OVERFLOW(b, "bigint_add input b");
     
     int max_used = (a->used > b->used) ? a->used : b->used;
     uint64_t carry = 0;
     
     bigint_init(r);
     
+    /* TODO: Enhanced addition with overflow detection */
     for (int i = 0; i < max_used || carry; i++) {
         if (i >= BIGINT_4096_WORDS) {
+            CHECKPOINT(LOG_ERROR, "Addition overflow: result too large for buffer");
             return -2; /* Overflow */
         }
         
@@ -419,17 +515,33 @@ int bigint_add(bigint_t *r, const bigint_t *a, const bigint_t *b) {
     }
     
     bigint_normalize(r);
+    VALIDATE_OVERFLOW(r, "bigint_add result");
     return 0;
 }
 
 int bigint_sub(bigint_t *r, const bigint_t *a, const bigint_t *b) {
-    if (!r || !a || !b) return -1;
+    /* TODO: Critical input validation for round-trip safety */
+    if (!r || !a || !b) {
+        CHECKPOINT(LOG_ERROR, "NULL pointer in bigint_sub");
+        return -1;
+    }
     
-    if (bigint_compare(a, b) < 0) return -2; /* a < b */
+    /* TODO: FIXME - Validate inputs are not negative */
+    VALIDATE_OVERFLOW(a, "bigint_sub input a");
+    VALIDATE_OVERFLOW(b, "bigint_sub input b");
+    
+    /* TODO: Check subtraction validity */
+    if (bigint_compare(a, b) < 0) {
+        CHECKPOINT(LOG_ERROR, "Subtraction underflow: a < b");
+        debug_print_bigint("a", a);
+        debug_print_bigint("b", b);
+        return -2; /* a < b */
+    }
     
     bigint_init(r);
     uint64_t borrow = 0;
     
+    /* TODO: Enhanced subtraction with underflow detection */
     for (int i = 0; i < a->used; i++) {
         uint64_t a_val = a->words[i];
         uint64_t b_val = (i < b->used) ? b->words[i] : 0;
@@ -446,25 +558,41 @@ int bigint_sub(bigint_t *r, const bigint_t *a, const bigint_t *b) {
 }
 
 int bigint_mul(bigint_t *r, const bigint_t *a, const bigint_t *b) {
-    if (!r || !a || !b) return -1;
+    /* TODO: Critical input validation for round-trip safety */
+    if (!r || !a || !b) {
+        CHECKPOINT(LOG_ERROR, "NULL pointer in bigint_mul");
+        return -1;
+    }
     
     bigint_init(r);
     
+    /* TODO: Handle zero multiplication efficiently */
     if (bigint_is_zero(a) || bigint_is_zero(b)) {
+        CHECKPOINT(LOG_DEBUG, "Zero multiplication detected");
         return 0;
     }
     
-    /* Check for overflow */
+    /* TODO: Input validation */
+    VALIDATE_OVERFLOW(a, "bigint_mul input a");
+    VALIDATE_OVERFLOW(b, "bigint_mul input b");
+    
+    /* FIXME: Enhanced overflow protection for multiplication */
     if (a->used + b->used > BIGINT_4096_WORDS) {
+        CHECKPOINT(LOG_ERROR, "Multiplication overflow: result would be %d words (max %d)", 
+                  a->used + b->used, BIGINT_4096_WORDS);
         return -2; /* Result would be too large */
     }
     
+    /* TODO: School multiplication with enhanced bounds checking */
     for (int i = 0; i < a->used; i++) {
         uint64_t carry = 0;
         
         for (int j = 0; j < b->used || carry; j++) {
             int pos = i + j;
-            if (pos >= BIGINT_4096_WORDS) break;
+            if (pos >= BIGINT_4096_WORDS) {
+                CHECKPOINT(LOG_ERROR, "Multiplication position overflow: pos=%d", pos);
+                break;
+            }
             
             uint64_t current = r->words[pos];
             uint64_t product = 0;

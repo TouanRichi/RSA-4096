@@ -15,7 +15,7 @@
 int main(int argc, char **argv) {
     printf("[main:%d] Starting RSA-4096 application\n", __LINE__);
     if (argc < 2) {
-        printf("Usage: %s [verify|test|benchmark|binary|manual|real4096|hybrid|roundtrip|boundary|montgomery|algorithms]\n", argv[0]);
+        printf("Usage: %s [verify|test|benchmark|binary|manual|real4096|hybrid|roundtrip|boundary|montgomery|algorithms|edge]\n", argv[0]);
         return 1;
     }
     if (strcmp(argv[1], "verify") == 0) {
@@ -62,6 +62,10 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "algorithms") == 0) {
         printf("[main:%d] Running algorithm consistency validation\n", __LINE__);
         return validate_all_algorithms_round_trip();
+    }
+    if (strcmp(argv[1], "edge") == 0) {
+        printf("[main:%d] Running edge cases testing\n", __LINE__);
+        return test_edge_cases_zero_one_boundary();
     }
     printf("Unknown command: %s\n", argv[1]);
     return 1;
